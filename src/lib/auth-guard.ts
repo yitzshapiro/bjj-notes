@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DrizzleQueryError } from "drizzle-orm/errors";
 
 import { auth } from "@/auth";
 import { GoogleDriveError } from "@/lib/drive";
@@ -40,7 +41,14 @@ export function apiError(error: unknown) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
-  const message = error instanceof Error ? error.message : "Unexpected server error";
+  if (error instanceof DrizzleQueryError) {
+    console.error("Database query failed", error.cause ?? error);
+    return NextResponse.json(
+      { error: "Database query failed. Check the Neon connection and applied migrations." },
+      { status: 500 },
+    );
+  }
+
   console.error(error);
-  return NextResponse.json({ error: message }, { status: 500 });
+  return NextResponse.json({ error: "Unexpected server error" }, { status: 500 });
 }

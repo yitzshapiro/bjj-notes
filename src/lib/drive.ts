@@ -146,7 +146,11 @@ async function listChildren(client: DriveClient, folderId: string) {
   } while (pageToken);
 
   return files
-    .filter((file) => file.mimeType === FOLDER_MIME_TYPE || file.mimeType.startsWith("video/"))
+    .filter(
+      (file) =>
+        file.mimeType === FOLDER_MIME_TYPE ||
+        (file.mimeType.startsWith("video/") && !file.name.startsWith("._")),
+    )
     .sort((left, right) => {
       const byName = left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" });
       return byName || left.id.localeCompare(right.id);
@@ -228,24 +232,27 @@ export async function syncDriveLibrary(request: NextRequest) {
       .onConflictDoUpdate({
         target: driveItems.id,
         set: {
-          name: sql`excluded.${driveItems.name}`,
-          mimeType: sql`excluded.${driveItems.mimeType}`,
-          itemType: sql`excluded.${driveItems.itemType}`,
-          parentId: sql`excluded.${driveItems.parentId}`,
-          driveParentId: sql`excluded.${driveItems.driveParentId}`,
-          path: sql`excluded.${driveItems.path}`,
-          depth: sql`excluded.${driveItems.depth}`,
-          sortOrder: sql`excluded.${driveItems.sortOrder}`,
-          sizeBytes: sql`excluded.${driveItems.sizeBytes}`,
-          durationMs: sql`excluded.${driveItems.durationMs}`,
-          width: sql`excluded.${driveItems.width}`,
-          height: sql`excluded.${driveItems.height}`,
-          driveModifiedAt: sql`excluded.${driveItems.driveModifiedAt}`,
-          webViewLink: sql`excluded.${driveItems.webViewLink}`,
-          thumbnailLink: sql`excluded.${driveItems.thumbnailLink}`,
-          syncedAt: sql`excluded.${driveItems.syncedAt}`,
-          deletedAt: sql`excluded.${driveItems.deletedAt}`,
-          updatedAt: sql`excluded.${driveItems.updatedAt}`,
+          // Column objects render as table-qualified references. PostgreSQL's
+          // EXCLUDED pseudo-table only accepts `excluded.column`, so use the
+          // physical column names for multi-row upserts.
+          name: sql.raw(`excluded.${driveItems.name.name}`),
+          mimeType: sql.raw(`excluded.${driveItems.mimeType.name}`),
+          itemType: sql.raw(`excluded.${driveItems.itemType.name}`),
+          parentId: sql.raw(`excluded.${driveItems.parentId.name}`),
+          driveParentId: sql.raw(`excluded.${driveItems.driveParentId.name}`),
+          path: sql.raw(`excluded.${driveItems.path.name}`),
+          depth: sql.raw(`excluded.${driveItems.depth.name}`),
+          sortOrder: sql.raw(`excluded.${driveItems.sortOrder.name}`),
+          sizeBytes: sql.raw(`excluded.${driveItems.sizeBytes.name}`),
+          durationMs: sql.raw(`excluded.${driveItems.durationMs.name}`),
+          width: sql.raw(`excluded.${driveItems.width.name}`),
+          height: sql.raw(`excluded.${driveItems.height.name}`),
+          driveModifiedAt: sql.raw(`excluded.${driveItems.driveModifiedAt.name}`),
+          webViewLink: sql.raw(`excluded.${driveItems.webViewLink.name}`),
+          thumbnailLink: sql.raw(`excluded.${driveItems.thumbnailLink.name}`),
+          syncedAt: sql.raw(`excluded.${driveItems.syncedAt.name}`),
+          deletedAt: sql.raw(`excluded.${driveItems.deletedAt.name}`),
+          updatedAt: sql.raw(`excluded.${driveItems.updatedAt.name}`),
         },
       });
   }
