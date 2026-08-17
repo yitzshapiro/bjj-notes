@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 import { BookOpen, LockKeyhole } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function HomePage() {
   const session = await auth();
@@ -8,6 +9,7 @@ export default async function HomePage() {
 
   return (
     <main className="signin-page">
+      <ThemeToggle className="signin-theme-toggle" />
       <section className="signin-card">
         <span className="brand__mark"><BookOpen size={21} strokeWidth={2.3} /></span>
         <h1>Rollbook</h1>

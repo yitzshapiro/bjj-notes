@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BookOpen, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
 type AppHeaderProps = {
   compact?: boolean;
@@ -25,6 +26,7 @@ export function AppHeader({ compact = false, title, trailing }: AppHeaderProps) 
         {title ? <p className="app-header__title truncate">{title}</p> : null}
         <div className="app-header__actions">
           {trailing}
+          <ThemeToggle />
           <button
             className="icon-button mobile-only"
             type="button"

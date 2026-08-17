@@ -157,13 +157,32 @@ function PresetManager({
   );
 }
 
-export function StudyClient({ videoId, initialName }: { videoId: string; initialName: string }) {
+export function StudyClient({
+  videoId,
+  initialName,
+  initialDuration,
+  playbackToken,
+  streamVersion,
+}: {
+  videoId: string;
+  initialName: string;
+  initialDuration: number;
+  playbackToken: string;
+  streamVersion: string;
+}) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSavedPosition = useRef(0);
+  const lastUiUpdateAt = useRef(0);
+  const pendingResumePosition = useRef<number | null>(null);
+  const pendingSeekPosition = useRef<number | null>(null);
+  const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState(initialName || "Instructional video");
-  const [progress, setProgress] = useState<VideoProgress>(emptyProgress);
+  const [progress, setProgress] = useState<VideoProgress>(() => ({
+    ...emptyProgress,
+    durationSeconds: initialDuration,
+  }));
   const [notes, setNotes] = useState<TimestampNote[]>([]);
   const [runningNote, setRunningNote] = useState("");
   const [sections, setSections] = useState<StudySection[]>([]);
@@ -181,7 +200,15 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [runningSaveState, setRunningSaveState] = useState<SaveState>("idle");
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const restorePlaybackPosition = useCallback((video: HTMLVideoElement) => {
+    const target = pendingResumePosition.current;
+    if (target == null || target <= 0 || !Number.isFinite(video.duration)) return;
+    pendingResumePosition.current = null;
+    if (target < video.duration - 5 && video.currentTime < 1) video.currentTime = target;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,8 +219,15 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
         const [bundle, presetItems] = await Promise.all([api.video(videoId), api.presets().catch(() => [])]);
         if (cancelled) return;
         setTitle(bundle.video?.name || initialName || "Instructional video");
-        setProgress({ ...emptyProgress, ...(bundle.progress ?? {}) });
-        lastSavedPosition.current = bundle.progress?.positionSeconds ?? 0;
+        const nextProgress = {
+          ...emptyProgress,
+          ...(bundle.progress ?? {}),
+        };
+        if (!nextProgress.durationSeconds) nextProgress.durationSeconds = initialDuration;
+        setProgress(nextProgress);
+        lastSavedPosition.current = nextProgress.positionSeconds;
+        pendingResumePosition.current = nextProgress.positionSeconds;
+        if (videoRef.current?.readyState) restorePlaybackPosition(videoRef.current);
         setNotes(Array.isArray(bundle.notes) ? bundle.notes : []);
         setRunningNote(bundle.runningNote?.body ?? "");
         setSections(Array.isArray(bundle.sections) ? bundle.sections : []);
@@ -208,8 +242,11 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
     }
     void loadData();
     return () => { cancelled = true; };
-  }, [initialName, refreshKey, router, videoId]);
-  useEffect(() => () => { if (runningSaveTimer.current) clearTimeout(runningSaveTimer.current); }, []);
+  }, [initialDuration, initialName, refreshKey, restorePlaybackPosition, router, videoId]);
+  useEffect(() => () => {
+    if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+    if (runningSaveTimer.current) clearTimeout(runningSaveTimer.current);
+  }, []);
 
   const saveProgress = useCallback(async (next: Partial<VideoProgress>) => {
     setSaveState("saving");
@@ -230,17 +267,31 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
       positionSeconds: video.currentTime,
       durationSeconds: Number.isFinite(video.duration) ? video.duration : progress.durationSeconds,
     };
-    setProgress((current) => ({ ...current, ...next }));
-    if (Math.abs(video.currentTime - lastSavedPosition.current) > 5) {
+    const now = performance.now();
+    if (now - lastUiUpdateAt.current >= 750 || video.paused) {
+      lastUiUpdateAt.current = now;
+      setProgress((current) => ({ ...current, ...next }));
+    }
+    if (Math.abs(video.currentTime - lastSavedPosition.current) >= 15) {
       lastSavedPosition.current = video.currentTime;
-      void saveProgress(next);
+      if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+      progressSaveTimer.current = setTimeout(() => void saveProgress(next), 750);
     }
   };
 
   const seek = (seconds: number) => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = seconds;
-    void videoRef.current.play();
+    const video = videoRef.current;
+    if (!video) return;
+    const target = Math.max(0, Math.min(seconds, Number.isFinite(video.duration) ? video.duration : seconds));
+    pendingSeekPosition.current = target;
+    setMediaBusy(true);
+    if (!video.readyState) {
+      pendingResumePosition.current = target;
+      video.load();
+      return;
+    }
+    video.currentTime = target;
+    void video.play().catch(() => undefined);
   };
 
   const addNote = async () => {
@@ -293,9 +344,6 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
   const sortedNotes = useMemo(() => [...notes].sort((a, b) => a.timestampSeconds - b.timestampSeconds), [notes]);
   const focusedSection = sections.find((section) => section.focused);
 
-  if (loading) return <div className="app-page"><AppHeader compact /><main className="centered-state"><LoadingState label="Opening your study workspace…" /></main></div>;
-  if (error) return <div className="app-page"><AppHeader compact /><main className="centered-state"><ErrorState message={error} onRetry={() => setRefreshKey((value) => value + 1)} /></main></div>;
-
   return (
     <div className="app-page study-page">
       <AppHeader compact title={title} trailing={<div className="export-control"><button className="button button--secondary" type="button" onClick={() => setExportOpen((value) => !value)} aria-expanded={exportOpen}><Download size={16} /><span className="desktop-only">Export</span><ChevronDown size={14} /></button>{exportOpen ? <div className="export-menu"><strong>Export together</strong><a href={`/api/export?videoId=${encodeURIComponent(videoId)}&format=markdown`}><FileText size={15} /> Markdown</a><a href={`/api/export?videoId=${encodeURIComponent(videoId)}&format=json`}><FileText size={15} /> JSON</a><strong>Export separately</strong><a href={`/api/export?videoId=${encodeURIComponent(videoId)}&format=timestamped-markdown`}>Timestamped notes</a><a href={`/api/export?videoId=${encodeURIComponent(videoId)}&format=running-text`}>Running note</a></div> : null}</div>} />
@@ -307,15 +355,36 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
               ref={videoRef}
               controls
               playsInline
-              preload="metadata"
-              src={`/api/videos/${encodeURIComponent(videoId)}/stream`}
-              onLoadedMetadata={(event) => { const video = event.currentTarget; if (progress.positionSeconds > 0 && progress.positionSeconds < video.duration - 5) video.currentTime = progress.positionSeconds; setProgress((current) => ({ ...current, durationSeconds: Number.isFinite(video.duration) ? video.duration : current.durationSeconds })); }}
+              preload="auto"
+              src={`/api/videos/${encodeURIComponent(videoId)}/stream?token=${encodeURIComponent(playbackToken)}&v=${encodeURIComponent(streamVersion)}`}
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                restorePlaybackPosition(video);
+                if (pendingSeekPosition.current != null) video.currentTime = pendingSeekPosition.current;
+                setProgress((current) => ({ ...current, durationSeconds: Number.isFinite(video.duration) ? video.duration : current.durationSeconds }));
+              }}
+              onSeeking={() => setMediaBusy(true)}
+              onSeeked={(event) => {
+                const shouldPlay = pendingSeekPosition.current != null;
+                pendingSeekPosition.current = null;
+                setMediaBusy(false);
+                if (shouldPlay) void event.currentTarget.play().catch(() => undefined);
+              }}
+              onWaiting={() => setMediaBusy(true)}
+              onCanPlay={() => { if (pendingSeekPosition.current == null) setMediaBusy(false); }}
               onTimeUpdate={handleTimeUpdate}
-              onPause={() => void saveProgress({ positionSeconds: videoRef.current?.currentTime ?? progress.positionSeconds, durationSeconds: videoRef.current?.duration || progress.durationSeconds })}
+              onPause={() => {
+                if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+                const positionSeconds = videoRef.current?.currentTime ?? progress.positionSeconds;
+                lastSavedPosition.current = positionSeconds;
+                setProgress((current) => ({ ...current, positionSeconds }));
+                void saveProgress({ positionSeconds, durationSeconds: videoRef.current?.duration || progress.durationSeconds });
+              }}
               onEnded={() => void saveProgress({ positionSeconds: videoRef.current?.duration || progress.durationSeconds, durationSeconds: videoRef.current?.duration || progress.durationSeconds, completed: true })}
             >
               Your browser does not support HTML video.
             </video>
+            {mediaBusy ? <div className="video-buffering" role="status"><LoaderCircle className="spin" size={18} /> Loading video…</div> : null}
           </div>
           <div className="video-meta-card">
             <div className="video-title-row"><div><p className="eyebrow">Now studying</p><h1>{title}</h1></div><button className={`icon-button star-toggle ${progress.starred ? "is-active" : ""}`} type="button" aria-label={progress.starred ? "Remove video from starred" : "Star video"} aria-pressed={progress.starred} onClick={() => void saveProgress({ starred: !progress.starred })}><Star size={19} fill={progress.starred ? "currentColor" : "none"} /></button></div>
@@ -332,11 +401,13 @@ export function StudyClient({ videoId, initialName }: { videoId: string; initial
           </div>
 
           <div className="panel-content">
-            {activePanel === "timestamps" ? <section aria-labelledby="timestamps-title"><div className="panel-heading"><div><p className="eyebrow">At the current moment</p><h2 id="timestamps-title">Timestamped notes</h2></div><span className="current-time"><Pause size={12} /> {formatDuration(progress.positionSeconds)}</span></div><div className="note-composer"><textarea className="text-area" value={newNote} onChange={(event) => setNewNote(event.target.value)} placeholder="What happened here? Add a detail, cue, or question…" rows={4} /><button className="button button--primary button--full" type="button" disabled={!newNote.trim()} onClick={() => void addNote()}><Plus size={16} /> Add at {formatDuration(progress.positionSeconds)}</button></div><div className="timestamp-list">{sortedNotes.map((note) => <TimestampRow key={note.id} note={note} onSeek={() => seek(note.timestampSeconds)} onSave={async (body) => { const saved = await api.saveNote(videoId, { ...note, body }); setNotes((current) => current.map((item) => item.id === note.id ? saved : item)); }} onDelete={async () => { await api.deleteNote(videoId, note.id); setNotes((current) => current.filter((item) => item.id !== note.id)); }} />)}{!notes.length ? <div className="mini-empty"><Clock3 size={20} /><strong>No timestamped notes yet</strong><span>Pause anywhere and capture the detail you want to remember.</span></div> : null}</div></section> : null}
+            {loading ? <LoadingState label="Loading notes and divisions…" /> : null}
+            {!loading && error ? <ErrorState message={error} onRetry={() => setRefreshKey((value) => value + 1)} /> : null}
+            {!loading && !error && activePanel === "timestamps" ? <section aria-labelledby="timestamps-title"><div className="panel-heading"><div><p className="eyebrow">At the current moment</p><h2 id="timestamps-title">Timestamped notes</h2></div><span className="current-time"><Pause size={12} /> {formatDuration(progress.positionSeconds)}</span></div><div className="note-composer"><textarea className="text-area" value={newNote} onChange={(event) => setNewNote(event.target.value)} placeholder="What happened here? Add a detail, cue, or question…" rows={4} /><button className="button button--primary button--full" type="button" disabled={!newNote.trim()} onClick={() => void addNote()}><Plus size={16} /> Add at {formatDuration(progress.positionSeconds)}</button></div><div className="timestamp-list">{sortedNotes.map((note) => <TimestampRow key={note.id} note={note} onSeek={() => seek(note.timestampSeconds)} onSave={async (body) => { const saved = await api.saveNote(videoId, { ...note, body }); setNotes((current) => current.map((item) => item.id === note.id ? saved : item)); }} onDelete={async () => { await api.deleteNote(videoId, note.id); setNotes((current) => current.filter((item) => item.id !== note.id)); }} />)}{!notes.length ? <div className="mini-empty"><Clock3 size={20} /><strong>No timestamped notes yet</strong><span>Pause anywhere and capture the detail you want to remember.</span></div> : null}</div></section> : null}
 
-            {activePanel === "running" ? <section className="running-panel" aria-labelledby="running-title"><div className="panel-heading"><div><p className="eyebrow">Whole-video thinking</p><h2 id="running-title">Running note</h2></div><SaveIndicator state={runningSaveState} /></div><p className="panel-description">Use this for themes, questions, and takeaways that aren’t tied to one moment.</p><textarea className="text-area running-note" value={runningNote} onChange={(event) => changeRunningNote(event.target.value)} placeholder="Start your running notes…" aria-label="Running notes" /></section> : null}
+            {!loading && !error && activePanel === "running" ? <section className="running-panel" aria-labelledby="running-title"><div className="panel-heading"><div><p className="eyebrow">Whole-video thinking</p><h2 id="running-title">Running note</h2></div><SaveIndicator state={runningSaveState} /></div><p className="panel-description">Use this for themes, questions, and takeaways that aren’t tied to one moment.</p><textarea className="text-area running-note" value={runningNote} onChange={(event) => changeRunningNote(event.target.value)} placeholder="Start your running notes…" aria-label="Running notes" /></section> : null}
 
-            {activePanel === "sections" ? <section aria-labelledby="sections-title"><div className="panel-heading"><div><p className="eyebrow">Video structure</p><h2 id="sections-title">Divisions</h2></div><button className="icon-button" type="button" onClick={() => setPresetManagerOpen(true)} aria-label="Manage division presets"><Settings2 size={17} /></button></div><p className="panel-description">Mark techniques and chapters, then star or focus what you’re drilling now.</p><button className="button button--secondary button--full" type="button" onClick={() => { setSectionStart(videoRef.current?.currentTime ?? progress.positionSeconds); setSectionOpen((value) => !value); }}><Plus size={16} /> Add division at {formatDuration(progress.positionSeconds)}</button>{sectionOpen ? <div className="section-composer"><label><span>Preset</span><select className="select-input" value={sectionPresetId} onChange={(event) => { setSectionPresetId(event.target.value); const preset = presets.find((item) => item.id === event.target.value); if (preset && !sectionLabel) setSectionLabel(preset.label); }}><option value="">No preset</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label><label><span>Label</span><input className="text-input" value={sectionLabel} onChange={(event) => setSectionLabel(event.target.value)} placeholder="e.g. Knee-cut entry" /></label><div className="time-inputs"><label><span>Start (seconds)</span><input className="text-input" type="number" min="0" step="1" value={sectionStart} onChange={(event) => setSectionStart(Number(event.target.value))} /></label><label><span>End (optional)</span><input className="text-input" type="number" min={sectionStart} step="1" value={sectionEnd} onChange={(event) => setSectionEnd(event.target.value ? Number(event.target.value) : "")} /></label></div><div className="composer-actions"><button className="button button--ghost" type="button" onClick={() => setSectionOpen(false)}>Cancel</button><button className="button button--primary" type="button" disabled={!sectionLabel.trim() && !sectionPresetId} onClick={() => void createSection()}>Add division</button></div></div> : null}<div className="section-list">{sections.map((section) => <article className={`section-card ${section.focused ? "is-focused" : ""}`} key={section.id}><button className="section-card__main" type="button" onClick={() => seek(section.startSeconds)}><span className="section-card__time">{formatDuration(section.startSeconds)}{section.endSeconds != null ? `–${formatDuration(section.endSeconds)}` : ""}</span><strong>{section.label}</strong></button><div className="section-card__actions"><button className={`icon-button icon-button--small ${section.starred ? "is-active" : ""}`} type="button" aria-label={section.starred ? "Unstar division" : "Star division"} aria-pressed={section.starred} onClick={() => void updateSection(section, { starred: !section.starred })}><Star size={14} fill={section.starred ? "currentColor" : "none"} /></button><button className={`icon-button icon-button--small ${section.focused ? "is-focus" : ""}`} type="button" aria-label={section.focused ? "Clear current focus" : "Make this the current focus"} aria-pressed={section.focused} onClick={() => { const next = !section.focused; if (next) setSections((current) => current.map((item) => item.id === section.id ? item : { ...item, focused: false })); void updateSection(section, { focused: next }); }}><Bookmark size={14} fill={section.focused ? "currentColor" : "none"} /></button><button className="icon-button icon-button--small icon-button--danger" type="button" aria-label="Delete division" onClick={async () => { await api.deleteSection(videoId, section.id); setSections((current) => current.filter((item) => item.id !== section.id)); }}><Trash2 size={14} /></button></div></article>)}{!sections.length ? <div className="mini-empty"><ListVideo size={20} /><strong>No divisions yet</strong><span>Create a chapter at the current playback position.</span></div> : null}</div></section> : null}
+            {!loading && !error && activePanel === "sections" ? <section aria-labelledby="sections-title"><div className="panel-heading"><div><p className="eyebrow">Video structure</p><h2 id="sections-title">Divisions</h2></div><button className="icon-button" type="button" onClick={() => setPresetManagerOpen(true)} aria-label="Manage division presets"><Settings2 size={17} /></button></div><p className="panel-description">Mark techniques and chapters, then star or focus what you’re drilling now.</p><button className="button button--secondary button--full" type="button" onClick={() => { setSectionStart(videoRef.current?.currentTime ?? progress.positionSeconds); setSectionOpen((value) => !value); }}><Plus size={16} /> Add division at {formatDuration(progress.positionSeconds)}</button>{sectionOpen ? <div className="section-composer"><label><span>Preset</span><select className="select-input" value={sectionPresetId} onChange={(event) => { setSectionPresetId(event.target.value); const preset = presets.find((item) => item.id === event.target.value); if (preset && !sectionLabel) setSectionLabel(preset.label); }}><option value="">No preset</option>{presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label><label><span>Label</span><input className="text-input" value={sectionLabel} onChange={(event) => setSectionLabel(event.target.value)} placeholder="e.g. Knee-cut entry" /></label><div className="time-inputs"><label><span>Start (seconds)</span><input className="text-input" type="number" min="0" step="1" value={sectionStart} onChange={(event) => setSectionStart(Number(event.target.value))} /></label><label><span>End (optional)</span><input className="text-input" type="number" min={sectionStart} step="1" value={sectionEnd} onChange={(event) => setSectionEnd(event.target.value ? Number(event.target.value) : "")} /></label></div><div className="composer-actions"><button className="button button--ghost" type="button" onClick={() => setSectionOpen(false)}>Cancel</button><button className="button button--primary" type="button" disabled={!sectionLabel.trim() && !sectionPresetId} onClick={() => void createSection()}>Add division</button></div></div> : null}<div className="section-list">{sections.map((section) => <article className={`section-card ${section.focused ? "is-focused" : ""}`} key={section.id}><button className="section-card__main" type="button" onClick={() => seek(section.startSeconds)}><span className="section-card__time">{formatDuration(section.startSeconds)}{section.endSeconds != null ? `–${formatDuration(section.endSeconds)}` : ""}</span><strong>{section.label}</strong></button><div className="section-card__actions"><button className={`icon-button icon-button--small ${section.starred ? "is-active" : ""}`} type="button" aria-label={section.starred ? "Unstar division" : "Star division"} aria-pressed={section.starred} onClick={() => void updateSection(section, { starred: !section.starred })}><Star size={14} fill={section.starred ? "currentColor" : "none"} /></button><button className={`icon-button icon-button--small ${section.focused ? "is-focus" : ""}`} type="button" aria-label={section.focused ? "Clear current focus" : "Make this the current focus"} aria-pressed={section.focused} onClick={() => { const next = !section.focused; if (next) setSections((current) => current.map((item) => item.id === section.id ? item : { ...item, focused: false })); void updateSection(section, { focused: next }); }}><Bookmark size={14} fill={section.focused ? "currentColor" : "none"} /></button><button className="icon-button icon-button--small icon-button--danger" type="button" aria-label="Delete division" onClick={async () => { await api.deleteSection(videoId, section.id); setSections((current) => current.filter((item) => item.id !== section.id)); }}><Trash2 size={14} /></button></div></article>)}{!sections.length ? <div className="mini-empty"><ListVideo size={20} /><strong>No divisions yet</strong><span>Create a chapter at the current playback position.</span></div> : null}</div></section> : null}
           </div>
         </aside>
       </main>

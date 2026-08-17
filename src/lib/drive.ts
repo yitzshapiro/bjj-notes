@@ -5,6 +5,7 @@ import { and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { refreshGoogleAccessToken } from "@/auth";
 import { db } from "@/db";
 import { driveItems } from "@/db/schema";
+import { normalizeVideoRange } from "@/lib/video-range";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
@@ -277,11 +278,16 @@ export async function fetchDriveVideo(
   request: NextRequest,
   fileId: string,
   range: string | null,
+  sizeBytes: number | null,
 ) {
   const client = await createDriveClient(request);
   const params = new URLSearchParams({ alt: "media", supportsAllDrives: "true" });
-  const headers = range ? { Range: range } : undefined;
-  return client.fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${params}`, { headers });
+  const boundedRange = normalizeVideoRange(range, sizeBytes);
+  const headers = boundedRange ? { Range: boundedRange } : undefined;
+  return client.fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${params}`, {
+    headers,
+    signal: request.signal,
+  });
 }
 
 export async function assertActiveVideo(videoId: string) {

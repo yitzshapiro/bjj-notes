@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { auth } from "@/auth";
-import { apiError, requireAuth } from "@/lib/auth-guard";
-import { assertActiveVideo, fetchDriveVideo, GoogleDriveError } from "@/lib/drive";
+import { apiError } from "@/lib/auth-guard";
+import { fetchDriveVideo, GoogleDriveError } from "@/lib/drive";
+import { verifyPlaybackToken } from "@/lib/playback-token";
 
 const FORWARDED_HEADERS = [
   "accept-ranges",
@@ -14,14 +15,33 @@ const FORWARDED_HEADERS = [
 ] as const;
 
 async function streamHandler(
-  request: NextRequest,
+  request: NextRequest & { auth?: { user?: { email?: string | null } } | null },
   context: RouteContext<"/api/videos/[id]/stream">,
 ) {
   try {
-    await requireAuth();
     const { id } = await context.params;
-    const video = await assertActiveVideo(id);
-    const upstream = await fetchDriveVideo(request, video.id, request.headers.get("range"));
+    const expectedEmail = process.env.ALLOWED_GOOGLE_EMAIL?.trim().toLowerCase();
+    const actualEmail = request.auth?.user?.email?.trim().toLowerCase();
+    if (!expectedEmail || actualEmail !== expectedEmail) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    const token = request.nextUrl.searchParams.get("token");
+    if (!token) return NextResponse.json({ error: "Playback token required" }, { status: 401 });
+
+    let playback: ReturnType<typeof verifyPlaybackToken>;
+    try {
+      playback = verifyPlaybackToken(token, id);
+    } catch {
+      return NextResponse.json({ error: "Playback link is invalid or expired" }, { status: 401 });
+    }
+
+    const upstream = await fetchDriveVideo(
+      request,
+      playback.videoId,
+      request.headers.get("range"),
+      playback.sizeBytes,
+    );
 
     if (!upstream.ok && upstream.status !== 416) {
       const detail = await upstream.text();
@@ -37,7 +57,8 @@ async function streamHandler(
       if (value) headers.set(name, value);
     }
     if (!headers.has("accept-ranges")) headers.set("accept-ranges", "bytes");
-    headers.set("cache-control", "private, no-store");
+    headers.set("cache-control", "private, max-age=21600, must-revalidate, no-transform");
+    headers.set("vary", "Range");
 
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {

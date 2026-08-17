@@ -1,16 +1,41 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+
 import { StudyClient } from "@/components/study-client";
+import { AuthRequiredError, requireAuth } from "@/lib/auth-guard";
+import { assertActiveVideo, GoogleDriveError } from "@/lib/drive";
+import { createPlaybackToken } from "@/lib/playback-token";
 
 export default async function VideoStudyPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ videoId: string }>;
-  searchParams: Promise<{ name?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/");
-  const [{ videoId }, query] = await Promise.all([params, searchParams]);
-  return <StudyClient videoId={videoId} initialName={query.name ?? "Instructional video"} />;
+  const { videoId } = await params;
+  let video: Awaited<ReturnType<typeof assertActiveVideo>>;
+
+  try {
+    await requireAuth();
+    video = await assertActiveVideo(videoId);
+  } catch (error) {
+    if (error instanceof AuthRequiredError) redirect("/");
+    if (error instanceof GoogleDriveError && error.status === 404) redirect("/library");
+    throw error;
+  }
+
+  const version = String(video.driveModifiedAt?.getTime() ?? video.updatedAt.getTime());
+  const playbackToken = createPlaybackToken({
+    videoId: video.id,
+    sizeBytes: video.sizeBytes,
+    version,
+  });
+
+  return (
+    <StudyClient
+      videoId={video.id}
+      initialName={video.name}
+      initialDuration={video.durationMs ? video.durationMs / 1000 : 0}
+      playbackToken={playbackToken}
+      streamVersion={version}
+    />
+  );
 }
