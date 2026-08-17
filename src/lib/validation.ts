@@ -66,9 +66,13 @@ export const sectionUpdateInput = z
     sortOrder: z.number().int().min(0).optional(),
     starred: z.boolean().optional(),
     focused: z.boolean().optional(),
+    /** Logs one more practice rep and drops the division out of the focus list. */
+    markPracticed: z.boolean().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, { message: "At least one field is required" });
+
+export const sectionScope = z.enum(["all", "focus", "practiced", "starred"]).catch("all");
 
 export function parseJson<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);

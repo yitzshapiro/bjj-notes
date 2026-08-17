@@ -11,8 +11,8 @@ export default async function HomePage() {
     <main className="signin-page">
       <ThemeToggle className="signin-theme-toggle" />
       <section className="signin-card">
-        <span className="brand__mark"><BookOpen size={21} strokeWidth={2.3} /></span>
-        <h1>Rollbook</h1>
+        <span className="brand__mark"><BookOpen size={20} strokeWidth={2.4} /></span>
+        <h1>BJJ Notes</h1>
         <p>Private BJJ video notes.</p>
         <form
           action={async () => {

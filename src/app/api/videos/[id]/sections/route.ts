@@ -40,10 +40,6 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/vid
       if (!preset) throw new GoogleDriveError("Division preset not found", 404);
     }
 
-    if (input.focused) {
-      await db.update(videoSections).set({ focused: false, updatedAt: new Date() }).where(eq(videoSections.videoId, id));
-    }
-
     const [section] = await db
       .insert(videoSections)
       .values({
@@ -56,6 +52,7 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/vid
         sortOrder: input.sortOrder ?? 0,
         starred: input.starred ?? false,
         focused: input.focused ?? false,
+        focusAddedAt: input.focused ? new Date() : null,
       })
       .returning();
     return NextResponse.json({ section }, { status: 201 });

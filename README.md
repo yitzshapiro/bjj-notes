@@ -1,6 +1,6 @@
-# Rollbook
+# BJJ Notes
 
-Rollbook is a private, single-user video study notebook for a Google Drive library. It mirrors one configured Drive folder without renaming or flattening it, remembers playback progress in Neon Postgres, and keeps timestamped notes, running notes, divisions, and focused/starred sections beside each video.
+BJJ Notes is a private, single-user video study notebook for a Google Drive library. It mirrors one configured Drive folder without renaming or flattening it, remembers playback progress in Neon Postgres, and keeps timestamped notes, running notes, divisions, and focused/starred sections beside each video.
 
 The app is intended to run locally. It does not need to be deployed or made available to other users.
 
@@ -13,14 +13,14 @@ The app is intended to run locally. It does not need to be deployed or made avai
 - Exports timestamped notes, running notes, or both as Markdown or JSON.
 - Supports desktop and mobile layouts.
 
-Rollbook does not upload, rename, move, edit, or delete anything in Google Drive. The Drive folder remains the source of truth for the video hierarchy; Neon stores app state and a metadata index.
+BJJ Notes does not upload, rename, move, edit, or delete anything in Google Drive. The Drive folder remains the source of truth for the video hierarchy; Neon stores app state and a metadata index.
 
 ## Prerequisites
 
 - Node.js 20 or newer
 - pnpm 10 (the repository pins the expected version in `package.json`)
 - A Neon account and database
-- A Google Cloud project owned by the Google account that will use Rollbook
+- A Google Cloud project owned by the Google account that will use BJJ Notes
 - A Google Drive parent folder containing the video library
 
 ## Local setup
@@ -89,7 +89,7 @@ Video bytes remain in Google Drive and are not copied into Postgres.
 | `AUTH_GOOGLE_ID` | OAuth Web application client ID from Google Cloud. |
 | `AUTH_GOOGLE_SECRET` | OAuth Web application client secret from Google Cloud. |
 | `ALLOWED_GOOGLE_EMAIL` | The one Google account allowed to sign in. Comparison is case-insensitive. |
-| `DRIVE_ROOT_FOLDER_ID` | ID of the parent Drive folder mirrored by Rollbook. |
+| `DRIVE_ROOT_FOLDER_ID` | ID of the parent Drive folder mirrored by BJJ Notes. |
 
 Restart the local app after changing environment variables.
 
@@ -118,7 +118,7 @@ For either format, choose a combined export or export only timestamped notes or 
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Run Rollbook locally. |
+| `pnpm dev` | Run BJJ Notes locally. |
 | `pnpm test` | Run unit tests once. |
 | `pnpm typecheck` | Check TypeScript without producing build files. |
 | `pnpm lint` | Run the code-quality checks. |

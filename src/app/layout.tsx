@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Rollbook", template: "%s · Rollbook" },
+  title: { default: "BJJ Notes", template: "%s · BJJ Notes" },
   description: "A focused video study notebook for Brazilian jiu-jitsu instructionals.",
 };
 
@@ -10,14 +10,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f5ef" },
-    { media: "(prefers-color-scheme: dark)", color: "#111512" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
   ],
 };
 
 const themeInitializer = `
   try {
-    var saved = localStorage.getItem("rollbook-theme");
+    var saved = localStorage.getItem("bjj-notes-theme");
     var theme = saved === "light" || saved === "dark"
       ? saved
       : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");

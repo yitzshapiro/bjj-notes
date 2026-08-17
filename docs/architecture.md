@@ -2,7 +2,7 @@
 
 ## Overview
 
-Rollbook is a local-first-in-usage, server-backed Next.js application. The browser provides the responsive library, video, and note-taking experience; the Next.js server keeps Google and Neon credentials out of browser code; Google Drive remains the source of truth for media and hierarchy; and Neon Postgres stores durable study state.
+BJJ Notes is a local-first-in-usage, server-backed Next.js application. The browser provides the responsive library, video, and note-taking experience; the Next.js server keeps Google and Neon credentials out of browser code; Google Drive remains the source of truth for media and hierarchy; and Neon Postgres stores durable study state.
 
 ```text
 Browser on localhost
@@ -40,7 +40,7 @@ The browser should never receive the Google client secret, Neon connection strin
 
 Google Drive owns the video files and canonical folder structure. `DRIVE_ROOT_FOLDER_ID` is the only library entry point. Sync walks descendants of that folder, retains exact names and parent relationships, indexes folders and `video/*` files, and ignores unrelated files.
 
-The OAuth permission is `drive.readonly`. Rollbook does not have authorization to reorganize the library or modify any Drive item.
+The OAuth permission is `drive.readonly`. BJJ Notes does not have authorization to reorganize the library or modify any Drive item.
 
 ### Neon Postgres
 

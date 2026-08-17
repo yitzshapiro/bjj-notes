@@ -107,12 +107,18 @@ export const videoSections = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
     starred: boolean("starred").notNull().default(false),
     focused: boolean("focused").notNull().default(false),
+    focusAddedAt: timestamp("focus_added_at", { withTimezone: true }),
+    practiceCount: integer("practice_count").notNull().default(0),
+    lastPracticedAt: timestamp("last_practiced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("video_sections_video_start_idx").on(table.videoId, table.startSeconds),
     index("video_sections_focus_idx").on(table.videoId, table.focused),
+    index("video_sections_focused_idx").on(table.focused, table.focusAddedAt),
+    index("video_sections_practiced_idx").on(table.lastPracticedAt),
+    index("video_sections_starred_idx").on(table.starred),
   ],
 );
 

@@ -3,26 +3,33 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Check,
   ChevronDown,
   ChevronRight,
-  CirclePlay,
   Cloud,
-  FileVideo,
   Folder,
   FolderOpen,
+  Play,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Sparkles,
   Star,
+  Target,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, ApiError, LibraryNode, videoStatus, VideoStatus } from "@/lib/client-api";
-import { formatDate, formatDuration, formatPercent } from "@/lib/format";
+import {
+  api,
+  ApiError,
+  LibraryDivision,
+  LibraryNode,
+  LibraryPayload,
+  videoStatus,
+  VideoStatus,
+} from "@/lib/client-api";
+import { formatDate, formatFocusAge, formatPercent } from "@/lib/format";
 import { AppHeader } from "./app-header";
-import { ErrorState, LoadingState, ProgressBar } from "./ui";
+import { DivisionRow, studyHref } from "./division-row";
+import { ErrorState, LoadingState, ProgressBar, Thumbnail } from "./ui";
 
 type Filter = "all" | VideoStatus | "starred";
 
@@ -33,6 +40,12 @@ const filters: { id: Filter; label: string }[] = [
   { id: "completed", label: "Completed" },
   { id: "starred", label: "Starred" },
 ];
+
+const statusLabels: Record<VideoStatus, string> = {
+  "in-progress": "In progress",
+  completed: "Completed",
+  unwatched: "Unwatched",
+};
 
 function flatten(node: LibraryNode): LibraryNode[] {
   return [node, ...node.children.flatMap(flatten)];
@@ -50,7 +63,7 @@ function folderPath(root: LibraryNode, id: string): LibraryNode[] {
 
 function matchesFilter(node: LibraryNode, filter: Filter) {
   if (filter === "all") return true;
-  if (filter === "starred") return node.starred;
+  if (filter === "starred") return Boolean(node.starred);
   return videoStatus(node) === filter;
 }
 
@@ -79,13 +92,13 @@ function TreeBranch({
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
-            {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
         ) : (
           <span className="tree-row__spacer" />
         )}
         <button className="tree-row__label" type="button" onClick={() => onSelect(node.id)}>
-          {open ? <FolderOpen size={17} /> : <Folder size={17} />}
+          {open ? <FolderOpen size={15} /> : <Folder size={15} />}
           <span className="truncate">{node.name}</span>
         </button>
       </div>
@@ -109,56 +122,55 @@ function TreeBranch({
 function VideoCard({ node }: { node: LibraryNode }) {
   const progress = node.progress ?? 0;
   const status = videoStatus(node);
+
   return (
-    <article className="video-card">
-      <div className="video-card__visual" aria-hidden="true">
-        <span className="video-card__glyph">
-          <FileVideo size={24} />
-        </span>
-        <span className={`status-pill status-pill--${status}`}>
-          {status === "in-progress" ? "In progress" : status === "completed" ? "Completed" : "Unwatched"}
-        </span>
-        {node.starred ? <Star className="video-card__star" size={18} fill="currentColor" /> : null}
-      </div>
+    <Link className="video-card" href={studyHref(node.id, node.name)}>
+      <Thumbnail
+        videoId={node.id}
+        progress={progress}
+        durationSeconds={node.durationSeconds}
+        starred={node.starred}
+        completed={status === "completed"}
+      />
       <div className="video-card__body">
-        <div>
-          <h3>{node.name}</h3>
-          <p className="meta-line">
-            {node.durationSeconds ? formatDuration(node.durationSeconds) : "Video"}
-            <span aria-hidden="true">·</span>
-            {formatDate(node.updatedAt)}
-          </p>
-        </div>
-        <div className="video-card__progress">
-          <ProgressBar value={progress} label={`${node.name}: ${formatPercent(progress)} complete`} />
-          <span>{formatPercent(progress)}</span>
-        </div>
-        <Link className="button button--secondary button--full" href={`/library/${encodeURIComponent(node.id)}?name=${encodeURIComponent(node.name)}`}>
-          {status === "unwatched" ? "Start studying" : status === "completed" ? "Review" : "Continue"}
-          <ChevronRight size={16} />
-        </Link>
+        <h3>{node.name}</h3>
+        <p className="meta-line">
+          <span>{statusLabels[status]}</span>
+          {status === "in-progress" ? (
+            <>
+              <span className="dot">·</span>
+              <span>{formatPercent(progress)}</span>
+            </>
+          ) : null}
+          <span className="dot">·</span>
+          <span>{formatDate(node.updatedAt)}</span>
+        </p>
       </div>
-    </article>
+    </Link>
   );
 }
 
 export function LibraryClient() {
   const router = useRouter();
-  const [library, setLibrary] = useState<Awaited<ReturnType<typeof api.library>> | null>(null);
+  const [library, setLibrary] = useState<LibraryPayload | null>(null);
+  const [divisions, setDivisions] = useState<LibraryDivision[]>([]);
   const [activeFolderId, setActiveFolderId] = useState("root");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const nextLibrary = await api.library();
+      const [nextLibrary, nextDivisions] = await Promise.all([
+        api.library(),
+        api.divisions("all").catch(() => ({ sections: [] as LibraryDivision[] })),
+      ]);
       setLibrary(nextLibrary);
+      setDivisions(nextDivisions.sections);
       setActiveFolderId((current) =>
         flatten(nextLibrary.root).some((node) => node.id === current) ? current : nextLibrary.root.id,
       );
@@ -194,13 +206,28 @@ export function LibraryClient() {
   const activePath = library && activeFolder ? folderPath(library.root, activeFolder.id) : [];
   const searching = query.trim().length > 0;
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const videos = (searching ? allNodes : activeFolder?.children ?? [])
+  const matchesQuery = (name: string) => name.toLocaleLowerCase().includes(normalizedQuery);
+
+  // Starred is a library-wide view: what is starred matters more than where it sits.
+  const starredView = filter === "starred";
+  const starredVideos = allNodes.filter(
+    (node) => node.kind === "video" && node.starred && matchesQuery(node.name),
+  );
+  const starredDivisions = divisions.filter(
+    (division) =>
+      division.starred && (matchesQuery(division.label) || matchesQuery(division.video.name)),
+  );
+  const focusDivisions = divisions.filter((division) => division.focused);
+
+  const videos = (searching ? allNodes : (activeFolder?.children ?? []))
     .filter((node) => node.kind === "video")
-    .filter((node) => node.name.toLocaleLowerCase().includes(normalizedQuery))
+    .filter((node) => matchesQuery(node.name))
     .filter((node) => matchesFilter(node, filter));
-  const childFolders = searching
-    ? []
-    : (activeFolder?.children ?? []).filter((node) => node.kind === "folder");
+  const childFolders =
+    searching || starredView
+      ? []
+      : (activeFolder?.children ?? []).filter((node) => node.kind === "folder");
+
   const inProgress = allNodes
     .filter((node) => node.kind === "video" && videoStatus(node) === "in-progress")
     .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
@@ -210,124 +237,264 @@ export function LibraryClient() {
     (node) => node.kind === "video" && videoStatus(node) === "completed",
   ).length;
 
+  const header = (
+    <AppHeader
+      trailing={
+        <button className="button button--secondary" type="button" onClick={sync} disabled={syncing}>
+          <RefreshCw className={syncing ? "spin" : ""} size={15} />
+          <span className="desktop-only">{syncing ? "Syncing…" : "Sync Drive"}</span>
+        </button>
+      }
+    />
+  );
+
+  // The folder sidebar fills the grid's first column, so stay single-column
+  // until there is a tree to put in it.
+  if (loading || !library) {
+    return (
+      <div className="app-page">
+        {header}
+        <div className="centered-state">
+          {loading ? (
+            <LoadingState />
+          ) : (
+            <ErrorState message={error ?? "Your library could not be loaded."} onRetry={load} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-page">
-      <AppHeader
-        trailing={
-          <button className="button button--secondary" type="button" onClick={sync} disabled={syncing}>
-            <RefreshCw className={syncing ? "spin" : ""} size={16} />
-            <span className="desktop-only">{syncing ? "Syncing…" : "Sync Drive"}</span>
-          </button>
-        }
-      />
+      {header}
       <div className="library-layout">
-        {library ? (
-          <aside className="library-sidebar" aria-label="Drive folders">
-            <div className="eyebrow">Google Drive</div>
-            <ul className="tree-list">
-              <TreeBranch node={library.root} activeId={activeFolderId} onSelect={setActiveFolderId} />
-            </ul>
-            <div className="sidebar-sync">
-              <Cloud size={17} />
-              <span>
-                <strong>Drive connected</strong>
-                <small>{library.syncedAt ? `Synced ${formatDate(library.syncedAt)}` : "Ready to sync"}</small>
-              </span>
-            </div>
-          </aside>
-        ) : null}
+        <aside className="library-sidebar" aria-label="Drive folders">
+          <div className="eyebrow">Google Drive</div>
+          <ul className="tree-list">
+            <TreeBranch node={library.root} activeId={activeFolderId} onSelect={setActiveFolderId} />
+          </ul>
+          <div className="sidebar-sync">
+            <Cloud size={15} />
+            <span>
+              <strong>Drive connected</strong>
+              <small>{library.syncedAt ? `Synced ${formatDate(library.syncedAt)}` : "Ready to sync"}</small>
+            </span>
+          </div>
+        </aside>
+
         <main className="library-main">
-          {loading ? <LoadingState /> : null}
-          {!loading && error ? <ErrorState message={error} onRetry={load} /> : null}
-          {!loading && library ? (
-            <>
-              <section className="library-hero">
+          {error ? <ErrorState message={error} onRetry={load} /> : null}
+          <section className="page-head">
+            <div>
+              <h1>Library</h1>
+              <p>Videos from your selected Google Drive folder.</p>
+            </div>
+            {totalVideos ? (
+              <div className="head-stats">
                 <div>
-                  <p className="eyebrow">Study library</p>
-                  <h1>Library</h1>
-                  <p>Videos from your selected Google Drive folder.</p>
+                  <strong>
+                    {completedVideos}/{totalVideos}
+                  </strong>
+                  <small>completed</small>
                 </div>
-                {totalVideos ? (
-                  <div className="completion-card" aria-label={`${completedVideos} of ${totalVideos} videos completed`}>
-                    <span className="completion-card__icon"><Check size={19} /></span>
-                    <span><strong>{completedVideos} of {totalVideos}</strong><small>videos completed</small></span>
+                <div>
+                  <strong>{focusDivisions.length}</strong>
+                  <small>in focus</small>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          {resume ? (
+            <Link className="resume-card" href={studyHref(resume.id, resume.name)}>
+              <Thumbnail
+                videoId={resume.id}
+                progress={resume.progress ?? 0}
+                durationSeconds={resume.durationSeconds}
+                starred={resume.starred}
+              />
+              <div className="resume-card__copy">
+                <span className="eyebrow">Resume</span>
+                <h2 className="truncate">{resume.name}</h2>
+                <div className="resume-card__progress">
+                  <ProgressBar value={resume.progress ?? 0} />
+                  <span>{formatPercent(resume.progress)}</span>
+                </div>
+              </div>
+              <span className="button button--primary">
+                <Play size={15} /> Continue
+              </span>
+            </Link>
+          ) : null}
+
+          {focusDivisions.length ? (
+            <section className="focus-strip" aria-label="This week’s focus">
+              <span className="focus-strip__label">
+                <Target size={15} /> This week
+              </span>
+              <div className="focus-strip__items">
+                {focusDivisions.slice(0, 6).map((division) => (
+                  <Link
+                    key={division.id}
+                    className="focus-chip"
+                    href={studyHref(division.video.id, division.video.name, division.startSeconds)}
+                    title={`${division.video.name} · ${formatFocusAge(division.focusAddedAt)}`}
+                  >
+                    {division.label}
+                  </Link>
+                ))}
+              </div>
+              <Link href="/focus">
+                Focus board <ChevronRight size={14} />
+              </Link>
+            </section>
+          ) : null}
+
+          <section className="library-browser">
+            <div className="browser-toolbar">
+              <label className="search-field">
+                <Search size={16} />
+                <span className="sr-only">Search videos</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search your library"
+                />
+                {query ? (
+                  <button type="button" onClick={() => setQuery("")} aria-label="Clear search">
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </label>
+              <div className="filter-pills" aria-label="Filter videos">
+                {filters.map((item) => (
+                  <button
+                    key={item.id}
+                    className={filter === item.id ? "is-active" : ""}
+                    type="button"
+                    onClick={() => setFilter(item.id)}
+                  >
+                    {item.id === "starred" ? <Star size={13} /> : null}
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {starredView ? (
+              <>
+                <p className="search-summary">Everything starred, across your whole library.</p>
+
+                {starredVideos.length ? (
+                  <>
+                    <div className="group-head">
+                      <h2>Videos</h2>
+                      <span>{starredVideos.length}</span>
+                    </div>
+                    <div className="video-grid">
+                      {starredVideos.map((video) => (
+                        <VideoCard key={video.id} node={video} />
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+
+                {starredDivisions.length ? (
+                  <>
+                    <div className="group-head">
+                      <h2>Divisions</h2>
+                      <span>{starredDivisions.length}</span>
+                    </div>
+                    <div className="division-list">
+                      {starredDivisions.map((division) => (
+                        <DivisionRow
+                          key={division.id}
+                          division={division}
+                          detail={division.focused ? "In focus" : undefined}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+
+                {!starredVideos.length && !starredDivisions.length ? (
+                  <div className="empty-state">
+                    <span>
+                      <Star size={20} />
+                    </span>
+                    <h2>Nothing starred yet</h2>
+                    <p>Star a video or a division while studying and it shows up here.</p>
                   </div>
                 ) : null}
-              </section>
-
-              {resume ? (
-                <section className="resume-card">
-                  <div className="resume-card__icon"><CirclePlay size={25} /></div>
-                  <div className="resume-card__copy">
-                    <div className="eyebrow">Resume</div>
-                    <h2>{resume.name}</h2>
-                    <div className="resume-card__progress">
-                      <ProgressBar value={resume.progress ?? 0} />
-                      <span>{formatPercent(resume.progress)}</span>
-                    </div>
-                  </div>
-                  <Link className="button button--primary" href={`/library/${encodeURIComponent(resume.id)}?name=${encodeURIComponent(resume.name)}`}>
-                    Continue <ChevronRight size={16} />
-                  </Link>
-                </section>
-              ) : null}
-
-              <section className="library-browser">
-                <div className="browser-toolbar">
-                  <label className="search-field">
-                    <Search size={18} />
-                    <span className="sr-only">Search videos</span>
-                    <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your library" />
-                    {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={16} /></button> : null}
-                  </label>
-                  <button className="button button--secondary mobile-only" type="button" onClick={() => setFiltersOpen((value) => !value)}>
-                    <SlidersHorizontal size={16} /> Filters
-                  </button>
-                  <div className={`filter-pills ${filtersOpen ? "is-open" : ""}`} aria-label="Filter videos">
-                    {filters.map((item) => (
-                      <button key={item.id} className={filter === item.id ? "is-active" : ""} type="button" onClick={() => { setFilter(item.id); setFiltersOpen(false); }}>
-                        {item.id === "starred" ? <Star size={14} /> : null}{item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+              </>
+            ) : (
+              <>
                 {!searching ? (
                   <nav className="breadcrumbs" aria-label="Folder path">
                     {activePath.map((node, index) => (
                       <span key={node.id}>
-                        {index ? <ChevronRight size={14} /> : null}
-                        <button type="button" onClick={() => setActiveFolderId(node.id)} aria-current={index === activePath.length - 1 ? "page" : undefined}>{node.name}</button>
+                        {index ? <ChevronRight size={13} /> : null}
+                        <button
+                          type="button"
+                          onClick={() => setActiveFolderId(node.id)}
+                          aria-current={index === activePath.length - 1 ? "page" : undefined}
+                        >
+                          {node.name}
+                        </button>
                       </span>
                     ))}
                   </nav>
-                ) : <p className="search-summary">Results across your full Drive hierarchy</p>}
+                ) : (
+                  <p className="search-summary">Results across your full Drive hierarchy</p>
+                )}
 
                 {childFolders.length ? (
                   <div className="folder-grid">
                     {childFolders.map((folder) => (
-                      <button key={folder.id} className="folder-card" type="button" onClick={() => setActiveFolderId(folder.id)}>
-                        <span><Folder size={19} /><strong>{folder.name}</strong></span>
-                        <small>{folder.children.length} item{folder.children.length === 1 ? "" : "s"}</small>
-                        <ChevronRight size={17} />
+                      <button
+                        key={folder.id}
+                        className="folder-card"
+                        type="button"
+                        onClick={() => setActiveFolderId(folder.id)}
+                      >
+                        <Folder size={16} />
+                        <strong>{folder.name}</strong>
+                        <small>{folder.children.length}</small>
                       </button>
                     ))}
                   </div>
                 ) : null}
 
-                {videos.length ? <div className="video-grid">{videos.map((video) => <VideoCard key={video.id} node={video} />)}</div> : null}
+                {videos.length ? (
+                  <div className="video-grid">
+                    {videos.map((video) => (
+                      <VideoCard key={video.id} node={video} />
+                    ))}
+                  </div>
+                ) : null}
 
                 {!childFolders.length && !videos.length ? (
                   <div className="empty-state">
-                    <span><Sparkles size={23} /></span>
+                    <span>
+                      <Sparkles size={20} />
+                    </span>
                     <h2>{totalVideos ? "No matches" : "No videos synced"}</h2>
-                    <p>{totalVideos ? "Change the filter, search, or folder." : "Sync the selected Google Drive folder."}</p>
-                    {!totalVideos ? <button className="button button--primary" type="button" onClick={sync}><RefreshCw size={16} /> Sync Drive</button> : null}
+                    <p>
+                      {totalVideos
+                        ? "Change the filter, search, or folder."
+                        : "Sync the selected Google Drive folder."}
+                    </p>
+                    {!totalVideos ? (
+                      <button className="button button--primary" type="button" onClick={sync}>
+                        <RefreshCw size={15} /> Sync Drive
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
-              </section>
-            </>
-          ) : null}
+              </>
+            )}
+          </section>
         </main>
       </div>
     </div>

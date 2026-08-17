@@ -25,6 +25,37 @@ export function formatDate(value: string | Date | null | undefined) {
   }).format(date);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function toDate(value: string | Date | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Short day label for tallies: "Today", "Yesterday", then a calendar date. */
+export function formatDay(value: string | Date | null | undefined) {
+  const date = toDate(value);
+  if (!date) return "Never";
+
+  const days = Math.floor((Date.now() - date.getTime()) / DAY_MS);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return formatDate(date);
+}
+
+/** How long something has been carried in the focus list, counted in weeks. */
+export function formatFocusAge(value: string | Date | null | undefined) {
+  const date = toDate(value);
+  if (!date) return "In focus";
+
+  const weeks = Math.floor((Date.now() - date.getTime()) / (7 * DAY_MS));
+  if (weeks < 1) return "Added this week";
+  if (weeks === 1) return "Carried over 1 week";
+  return `Carried over ${weeks} weeks`;
+}
+
 export function initials(value: string) {
   return value
     .split(/\s+/)

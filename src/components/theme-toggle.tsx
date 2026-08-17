@@ -2,7 +2,7 @@
 
 import { Moon, Sun } from "lucide-react";
 
-const STORAGE_KEY = "rollbook-theme";
+const STORAGE_KEY = "bjj-notes-theme";
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const toggle = () => {
@@ -13,7 +13,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     localStorage.setItem(STORAGE_KEY, next);
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
       "content",
-      next === "dark" ? "#111512" : "#f5f5ef",
+      next === "dark" ? "#09090b" : "#ffffff",
     );
   };
 

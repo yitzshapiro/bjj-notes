@@ -8,6 +8,13 @@
       "when": 1786923527421,
       "tag": "0000_ambitious_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786984990958,
+      "tag": "0001_bent_frightful_four",
+      "breakpoints": true
     }
   ]
 }

@@ -7,10 +7,13 @@ import { createPlaybackToken } from "@/lib/playback-token";
 
 export default async function VideoStudyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ videoId: string }>;
+  searchParams: Promise<{ t?: string }>;
 }) {
   const { videoId } = await params;
+  const { t } = await searchParams;
   let video: Awaited<ReturnType<typeof assertActiveVideo>>;
 
   try {
@@ -34,6 +37,7 @@ export default async function VideoStudyPage({
       videoId={video.id}
       initialName={video.name}
       initialDuration={video.durationMs ? video.durationMs / 1000 : 0}
+      initialSeek={Math.max(0, Number(t) || 0)}
       playbackToken={playbackToken}
       streamVersion={version}
     />

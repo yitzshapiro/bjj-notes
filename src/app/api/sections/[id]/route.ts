@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/db";
@@ -31,19 +31,25 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       throw new ValidationError("endSeconds must be greater than startSeconds");
     }
 
-    if (input.focused) {
-      await db
-        .update(videoSections)
-        .set({ focused: false, updatedAt: new Date() })
-        .where(and(eq(videoSections.videoId, current.videoId), ne(videoSections.id, id)));
-    }
-
+    const { markPracticed, ...fields } = input;
+    const now = new Date();
     const changes: Partial<typeof videoSections.$inferInsert> = {
-      ...input,
-      updatedAt: new Date(),
+      ...fields,
+      updatedAt: now,
     };
     if (preset && input.label === undefined) changes.label = preset.label;
     if (preset && input.color === undefined) changes.color = preset.color;
+
+    // A practiced rep always leaves the focus list; the tally is what carries forward.
+    if (markPracticed) {
+      changes.practiceCount = current.practiceCount + 1;
+      changes.lastPracticedAt = now;
+      changes.focused = false;
+    }
+
+    if (changes.focused !== undefined && changes.focused !== current.focused) {
+      changes.focusAddedAt = changes.focused ? now : null;
+    }
 
     const [section] = await db
       .update(videoSections)

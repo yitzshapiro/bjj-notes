@@ -9,6 +9,7 @@ import { normalizeVideoRange } from "@/lib/video-range";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
+const THUMBNAIL_WIDTH = 640;
 
 type GoogleDriveFile = {
   id: string;
@@ -288,6 +289,51 @@ export async function fetchDriveVideo(
     headers,
     signal: request.signal,
   });
+}
+
+function resizedThumbnail(link: string) {
+  // Drive hands back a small `=s220` crop; the same link serves a larger frame.
+  return link.replace(/=s\d+$/, `=s${THUMBNAIL_WIDTH}`);
+}
+
+/**
+ * Drive derives a video's thumbnail from a frame of the file itself. The stored
+ * link expires well before the next sync, so a rejected one is refreshed here.
+ */
+export async function fetchDriveThumbnail(
+  request: NextRequest,
+  video: typeof driveItems.$inferSelect,
+) {
+  const client = await createDriveClient(request);
+
+  async function load(link: string) {
+    const url = resizedThumbnail(link);
+    const authorized = await client.fetch(url, { signal: request.signal });
+    if (authorized.ok) return authorized;
+    await authorized.body?.cancel();
+
+    // The thumbnail host sits outside the Drive API and can reject a bearer
+    // token outright, so fall back to an unauthenticated read of the same link.
+    const anonymous = await fetch(url, { signal: request.signal, cache: "no-store" });
+    if (anonymous.ok) return anonymous;
+    await anonymous.body?.cancel();
+    return null;
+  }
+
+  if (video.thumbnailLink) {
+    const cached = await load(video.thumbnailLink);
+    if (cached) return cached;
+  }
+
+  const fresh = await client.json<GoogleDriveFile>(fileUrl(video.id, "id,thumbnailLink"));
+  if (!fresh.thumbnailLink || fresh.thumbnailLink === video.thumbnailLink) return null;
+
+  await db
+    .update(driveItems)
+    .set({ thumbnailLink: fresh.thumbnailLink, updatedAt: new Date() })
+    .where(eq(driveItems.id, video.id));
+
+  return load(fresh.thumbnailLink);
 }
 
 export async function assertActiveVideo(videoId: string) {

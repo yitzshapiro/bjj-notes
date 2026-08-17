@@ -1,6 +1,6 @@
 # Google Drive and OAuth setup
 
-Rollbook uses Google OAuth for identity and for server-side, read-only access to one Drive library. These steps create a local Web application client; no deployment is required.
+BJJ Notes uses Google OAuth for identity and for server-side, read-only access to one Drive library. These steps create a local Web application client; no deployment is required.
 
 ## 1. Create or select a Google Cloud project
 
@@ -38,7 +38,7 @@ For this private local app, it is fine to leave the OAuth app in testing mode. G
 
 1. Open **Google Auth Platform → Clients** (or **APIs & Services → Credentials**).
 2. Choose **Create client → Web application**.
-3. Give the client a recognizable name such as `Rollbook local`.
+3. Give the client a recognizable name such as `BJJ Notes local`.
 4. Add this authorized JavaScript origin:
 
    ```text
@@ -70,7 +70,7 @@ Set the exact account email in `.env.local`:
 ALLOWED_GOOGLE_EMAIL=you@example.com
 ```
 
-Rollbook normalizes letter case and rejects a sign-in unless Google's email matches this value. OAuth consent alone is not authorization to use the app. If this variable is missing or blank, all sign-ins are denied.
+BJJ Notes normalizes letter case and rejects a sign-in unless Google's email matches this value. OAuth consent alone is not authorization to use the app. If this variable is missing or blank, all sign-ins are denied.
 
 ## 6. Select the library root
 
@@ -87,7 +87,7 @@ Set it in `.env.local`:
 DRIVE_ROOT_FOLDER_ID=1ExampleFolderIdHere
 ```
 
-The authorized account must have at least viewer access to the root folder and every video that should appear. Rollbook follows the hierarchy below this root, retains names exactly, and ignores unrelated Drive content.
+The authorized account must have at least viewer access to the root folder and every video that should appear. BJJ Notes follows the hierarchy below this root, retains names exactly, and ignores unrelated Drive content.
 
 ## 7. Finish the local configuration
 
@@ -141,5 +141,5 @@ Confirm that:
 
 ### Google asks for consent again
 
-Rollbook requests offline access so it can refresh short-lived access tokens. Google testing-mode policies, revoked access, a changed OAuth client, or a removed refresh token can still require a new sign-in and consent.
+BJJ Notes requests offline access so it can refresh short-lived access tokens. Google testing-mode policies, revoked access, a changed OAuth client, or a removed refresh token can still require a new sign-in and consent.
 

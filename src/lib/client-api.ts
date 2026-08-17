@@ -53,8 +53,28 @@ export type StudySection = {
   endSeconds: number | null;
   starred: boolean;
   focused: boolean;
+  focusAddedAt?: string | null;
+  practiceCount: number;
+  lastPracticedAt?: string | null;
   presetId?: string | null;
 };
+
+/** A division plus the video it lives in, for views that span the whole library. */
+export type LibraryDivision = StudySection & {
+  videoId: string;
+  video: { id: string; name: string; path: string[]; durationMs: number | null };
+};
+
+export type DivisionScope = "all" | "focus" | "practiced" | "starred";
+
+export type DivisionTotals = {
+  focused: number;
+  practiced: number;
+  starred: number;
+  reps: number;
+};
+
+export type SectionChanges = Partial<StudySection> & { markPracticed?: boolean };
 
 export type DivisionPreset = {
   id: string;
@@ -263,20 +283,30 @@ export const api = {
       ({ sections }) => sections,
     );
   },
-  saveSection(videoId: string, section: Partial<StudySection>) {
+  divisions(scope: DivisionScope = "all") {
+    return request<{ sections: LibraryDivision[]; totals: DivisionTotals }>(
+      `/api/sections?scope=${encodeURIComponent(scope)}`,
+    );
+  },
+  saveSection(videoId: string, section: SectionChanges) {
     const path = section.id
       ? `/api/sections/${encodeURIComponent(section.id)}`
       : `/api/videos/${encodeURIComponent(videoId)}/sections`;
+    const writable = [
+      "label",
+      "startSeconds",
+      "endSeconds",
+      "presetId",
+      "starred",
+      "focused",
+      "markPracticed",
+    ] as const;
+    const body = Object.fromEntries(
+      writable.filter((key) => section[key] !== undefined).map((key) => [key, section[key]]),
+    );
     return request<{ section: StudySection }>(path, {
       method: section.id ? "PATCH" : "POST",
-      body: JSON.stringify({
-        label: section.label,
-        startSeconds: section.startSeconds,
-        endSeconds: section.endSeconds,
-        presetId: section.presetId,
-        starred: section.starred,
-        focused: section.focused,
-      }),
+      body: JSON.stringify(body),
     }).then(({ section: saved }) => saved);
   },
   deleteSection(videoId: string, id: string) {
@@ -296,6 +326,11 @@ export const api = {
     return request<void>(`/api/presets/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 };
+
+/** Server-proxied frame from the video, since Drive's own link needs an access token. */
+export function thumbnailUrl(videoId: string) {
+  return `/api/videos/${encodeURIComponent(videoId)}/thumbnail`;
+}
 
 export function videoStatus(node: LibraryNode): VideoStatus {
   if (node.completed || (node.progress ?? 0) >= 0.95) return "completed";
