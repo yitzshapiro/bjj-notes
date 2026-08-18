@@ -2,7 +2,7 @@ import { and, asc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/db";
-import { driveItems, sectionTags, tags, videoSections } from "@/db/schema";
+import { driveItems, gameEntries, sectionTags, tags, videoSections } from "@/db/schema";
 import { apiError, requireAuth } from "@/lib/auth-guard";
 import { divisionQuery, parseJson } from "@/lib/validation";
 
@@ -62,9 +62,11 @@ export async function GET(request: NextRequest) {
       .select({
         section: videoSections,
         video: { id: driveItems.id, name: driveItems.name, path: driveItems.path },
+        gameEntryId: gameEntries.id,
       })
       .from(videoSections)
       .innerJoin(driveItems, eq(videoSections.videoId, driveItems.id))
+      .leftJoin(gameEntries, eq(gameEntries.sectionId, videoSections.id))
       .where(where)
       .orderBy(asc(driveItems.name), asc(videoSections.startSeconds))
       .limit(input.limit)
@@ -102,6 +104,7 @@ export async function GET(request: NextRequest) {
       divisions: rows.map((row) => ({
         ...row.section,
         video: row.video,
+        gameEntryId: row.gameEntryId,
         tags: (bySection.get(row.section.id) ?? []).map((tag) => ({
           slug: tag.slug,
           label: tag.label,

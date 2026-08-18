@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/db";
-import { driveItems, gamePlans, planStages, planSteps, videoSections } from "@/db/schema";
+import { driveItems, gameEntries, gamePlans, planStages, planSteps, videoSections } from "@/db/schema";
 import { apiError, requireAuth } from "@/lib/auth-guard";
 import { GoogleDriveError } from "@/lib/drive";
 import { isUuid } from "@/lib/validation";
@@ -36,17 +36,20 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/pla
         step: planSteps,
         section: videoSections,
         video: { id: driveItems.id, name: driveItems.name, path: driveItems.path },
+        gameEntryId: gameEntries.id,
       })
       .from(planSteps)
       .innerJoin(planStages, eq(planSteps.stageId, planStages.id))
       .leftJoin(videoSections, eq(planSteps.sectionId, videoSections.id))
       .innerJoin(driveItems, eq(planSteps.videoId, driveItems.id))
+      .leftJoin(gameEntries, eq(gameEntries.sectionId, planSteps.sectionId))
       .where(eq(planStages.planId, plan.id))
       .orderBy(asc(planStages.sortOrder), asc(planSteps.sortOrder));
 
     const steps = rows.map((row) => ({
       ...row.step,
       video: row.video,
+      gameEntryId: row.gameEntryId,
       practiceCount: row.section?.practiceCount ?? 0,
       lastPracticedAt: row.section?.lastPracticedAt ?? null,
       focused: row.section?.focused ?? false,

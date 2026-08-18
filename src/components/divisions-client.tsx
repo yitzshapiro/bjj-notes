@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Search, SlidersHorizontal, Star, Tags, Target, X } from "lucide-react";
+import { Check, Search, SlidersHorizontal, Star, Swords, Tags, Target, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
@@ -38,11 +38,14 @@ function DivisionCard({
   division,
   busy,
   onChange,
+  onToggleGame,
 }: {
   division: BrowsedDivision;
   busy: boolean;
   onChange: (changes: { focused?: boolean; starred?: boolean; markPracticed?: boolean }) => void;
+  onToggleGame: () => void;
 }) {
+  const inGame = Boolean(division.gameEntryId);
   return (
     <article className={`browse-row ${division.focused ? "is-focused" : ""}`}>
       <Link
@@ -81,6 +84,17 @@ function DivisionCard({
             ×{division.practiceCount}
           </span>
         ) : null}
+        <button
+          className={`icon-button icon-button--small ${inGame ? "is-in-game" : ""}`}
+          type="button"
+          disabled={busy}
+          aria-label={inGame ? `Remove ${division.label} from My Game` : `Add ${division.label} to My Game`}
+          aria-pressed={inGame}
+          title={inGame ? "In My Game — click to remove" : "Add to My Game"}
+          onClick={onToggleGame}
+        >
+          <Swords size={14} />
+        </button>
         <button
           className={`icon-button icon-button--small ${division.starred ? "is-starred" : ""}`}
           type="button"
@@ -198,6 +212,27 @@ export function DivisionsClient() {
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "That change could not be saved.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleGame = async (division: BrowsedDivision) => {
+    setBusyId(division.id);
+    try {
+      if (division.gameEntryId) {
+        await api.removeFromGame(division.id);
+        setDivisions((current) =>
+          current.map((item) => (item.id === division.id ? { ...item, gameEntryId: null } : item)),
+        );
+      } else {
+        const { entry } = await api.addToGame(division.id);
+        setDivisions((current) =>
+          current.map((item) => (item.id === division.id ? { ...item, gameEntryId: entry.id } : item)),
+        );
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "My Game could not be updated.");
     } finally {
       setBusyId(null);
     }
@@ -352,6 +387,7 @@ export function DivisionsClient() {
                 division={division}
                 busy={busyId === division.id}
                 onChange={(changes) => void change(division, changes)}
+                onToggleGame={() => void toggleGame(division)}
               />
             ))}
           </div>

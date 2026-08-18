@@ -12,6 +12,8 @@ The app is intended to run locally. It does not need to be deployed or made avai
 - Saves playback position, completion state, timestamped notes, running notes, division presets, and starred/focused video sections in Neon.
 - Tags every division by position, phase, and technique, and makes the whole library searchable.
 - Groups divisions into **game plans**: ordered stages that form a route through the library toward one skill.
+- Tracks **My Game** — the techniques you are trying to land, and every dated occasion they worked.
+- Plays video with study-oriented keyboard shortcuts and a persistent speed control.
 - Exports timestamped notes, running notes, or both as Markdown or JSON.
 - Supports desktop and mobile layouts.
 
@@ -79,8 +81,9 @@ Neon stores:
 - timestamped and running notes;
 - reusable division presets;
 - video sections, including starred and current-focus state;
-- the tag vocabulary and which tags apply to which division; and
-- game plans, their stages, and the divisions each stage drills.
+- the tag vocabulary and which tags apply to which division;
+- game plans, their stages, and the divisions each stage drills; and
+- My Game entries and the dated hits logged against them.
 
 Video bytes remain in Google Drive and are not copied into Postgres.
 
@@ -108,6 +111,55 @@ https://drive.google.com/drive/folders/1ExampleFolderIdHere
 Copy only the value after `/folders/` into `DRIVE_ROOT_FOLDER_ID`. The signed-in account must be able to read that folder and its descendants.
 
 Only descendants of this root are shown. Folder and video names are kept verbatim, and the tree uses the same nesting as Drive. Non-video files are ignored.
+
+## Player shortcuts
+
+The study player is built for reviewing technique, where the useful controls are
+speed and short jumps rather than scrubbing.
+
+| Key | Action |
+| --- | --- |
+| `→` | Skip forward 10 seconds |
+| `←` | Skip back 10 seconds |
+| `Shift` + `.` | Next speed up |
+| `Shift` + `,` | Next speed down |
+
+Speeds step through 0.25× to 3× and stop at each end rather than wrapping. The
+chosen speed is remembered across videos, and the same steps are available from
+the speed button next to the player for pointer and touch use.
+
+Shortcuts are ignored while the cursor is in a note field or a dialog is open, so
+typing a comma in a running note never changes playback speed. The arrow keys
+replace the browser's own 5-second seek so the step is a predictable 10 seconds
+wherever focus happens to be.
+
+## My Game
+
+A game plan is what you intend to learn. **My Game** is what you have claimed —
+the techniques you are actively trying to land — and it is the only place the app
+records what actually works on a resisting partner.
+
+Add any division to your game from the Divisions browser or from a plan, then
+mark it every time it lands. Each hit is stored as a dated event with a context
+(drilling, positional, live rolling, or competition) rather than as a counter,
+because the useful question is not "how many times" but "how often, and how
+recently".
+
+Status is derived from that history, never set by hand:
+
+| Status | Earned by |
+| --- | --- |
+| Untested | In your game, not yet landed against resistance |
+| Landing | Landed on 1 separate day |
+| Working | Landed on 3 separate days |
+| Core | Landed on 6 separate days |
+
+Two rules make the status mean something. **Distinct days count, not raw hits** —
+landing something four times in one good round is one day of evidence, and a
+status you can inflate in a single session proves nothing. And **drilling
+repetitions are excluded**, since the whole point is whether it survives
+resistance. Marking a division practiced (the check button) still tracks drilling
+separately on the division itself.
 
 ## Division tags
 
@@ -162,20 +214,22 @@ Plans do not store reps of their own. A step points at the division it drills, s
 the focus board stays in sync — marking a step practiced on a plan is the same
 write as marking it practiced anywhere else.
 
-One plan ships with the app. **Pull Guard → Offensive Round** is seven stages and
-49 divisions drawn from Danaher's *Feet to Floor* Vol. 3, *New Wave Open Guard*
-Vol. 1–2, *Enter the System: Triangles*, and *Go Further Faster: Guard
-Retention*. Seed it after the library has been synced:
+One plan ships with the app. **In Guard → Immediate Attack** is seven stages and
+51 divisions, built on the premise that guard is a position you arrive in —
+swept, stuffed on a shot, out of a scramble, or off a pull — and attack from
+immediately. It draws on *New Wave Open Guard* Vol. 1–2, *Go Further Faster*
+Closed Guard, Open Guard and Guard Retention, *No-Gi Half Guard*, and *Enter the
+System: Triangles*. Seed it after the library has been synced:
 
 ```bash
-pnpm seed:guard-path
+pnpm seed:guard-plan
 ```
 
 That prints the plan without writing. Add `--apply` to save it, then open
-`/plans/guard-pull-offense`:
+`/plans/guard-attack-system`:
 
 ```bash
-pnpm seed:guard-path --apply
+pnpm seed:guard-plan --apply
 ```
 
 The seeder resolves every step against an existing division by video name and
@@ -204,7 +258,7 @@ For either format, choose a combined export or export only timestamped notes or 
 | `pnpm db:generate` | Generate a migration after an intentional schema change. |
 | `pnpm db:migrate` | Apply checked-in migrations to `DATABASE_URL`. |
 | `pnpm tag:divisions` | Preview the division tagging; add `--apply` to write it. |
-| `pnpm seed:guard-path` | Preview the built-in guard-pull game plan; add `--apply` to write it. |
+| `pnpm seed:guard-plan` | Preview the built-in guard game plan; add `--apply` to write it. |
 
 ## Privacy and security
 

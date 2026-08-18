@@ -84,6 +84,32 @@ export type DivisionPreset = {
   sortOrder?: number;
 };
 
+export type HitContext = "drilling" | "positional" | "live" | "competition";
+
+export type GameHit = {
+  id: string;
+  entryId: string;
+  hitAt: string;
+  context: HitContext;
+  note: string | null;
+};
+
+/** A technique you have claimed, with every occasion it actually worked. */
+export type GameEntry = {
+  id: string;
+  sectionId: string | null;
+  videoId: string;
+  label: string;
+  startSeconds: number;
+  note: string | null;
+  addedAt: string;
+  video: { id: string; name: string; path: string[] };
+  practiceCount: number;
+  focused: boolean;
+  starred: boolean;
+  hits: GameHit[];
+};
+
 export type TagKind = "position" | "phase" | "technique";
 
 export type LibraryTag = {
@@ -108,6 +134,8 @@ export type BrowsedDivision = StudySection & {
   videoId: string;
   video: { id: string; name: string; path: string[] };
   tags: DivisionTag[];
+  /** Non-null when this division is already in My Game. */
+  gameEntryId: string | null;
 };
 
 export type DivisionScopeFilter = "all" | "focus" | "starred" | "practiced" | "untouched";
@@ -134,6 +162,7 @@ export type PlanStep = {
   note: string | null;
   sortOrder: number;
   video: { id: string; name: string; path: string[] };
+  gameEntryId: string | null;
   practiceCount: number;
   lastPracticedAt: string | null;
   focused: boolean;
@@ -401,6 +430,32 @@ export const api = {
   },
   tags() {
     return request<{ tags: LibraryTag[] }>("/api/tags").then(({ tags }) => tags);
+  },
+  game() {
+    return request<{ entries: GameEntry[] }>("/api/game").then(({ entries }) => entries);
+  },
+  addToGame(sectionId: string) {
+    return request<{ entry: GameEntry; created: boolean }>("/api/game", {
+      method: "POST",
+      body: JSON.stringify({ sectionId }),
+    });
+  },
+  removeFromGame(sectionId: string) {
+    return request<{ deleted: boolean }>(`/api/game?sectionId=${encodeURIComponent(sectionId)}`, {
+      method: "DELETE",
+    });
+  },
+  logHit(entryId: string, options: { context?: HitContext; note?: string } = {}) {
+    return request<{ hit: GameHit }>(`/api/game/${encodeURIComponent(entryId)}/hits`, {
+      method: "POST",
+      body: JSON.stringify({ context: options.context ?? "live", note: options.note }),
+    }).then(({ hit }) => hit);
+  },
+  undoHit(entryId: string) {
+    return request<{ deleted: boolean; id: string }>(
+      `/api/game/${encodeURIComponent(entryId)}/hits`,
+      { method: "DELETE" },
+    );
   },
   searchDivisions(options: {
     q?: string;

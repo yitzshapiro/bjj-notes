@@ -331,6 +331,86 @@ button.time-chip:hover { color: var(--foreground); }
 .focus-section__head h2 { margin: 0; font-size: 16px; }
 .focus-section__head p { margin: 4px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
 
+/* My Game ----------------------------------------------------------------- */
+.icon-button.is-in-game { color: var(--foreground); background: var(--accent); }
+
+.game-list { display: flex; flex-direction: column; gap: 10px; }
+.game-entry { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); }
+.game-entry--core { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.game-entry--working { border-color: color-mix(in srgb, var(--success) 22%, var(--border)); }
+.game-entry__head { display: flex; align-items: flex-start; gap: 10px; }
+.game-entry__main { min-width: 0; flex: 1; display: flex; align-items: center; gap: 10px; }
+.game-entry__text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.game-entry__text strong { overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.game-entry__text small { overflow: hidden; color: var(--muted-foreground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+.status-pill { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.status-pill--landing { background: var(--star-soft); color: var(--star); }
+.status-pill--working { background: var(--success-soft); color: var(--success); }
+.status-pill--core { background: var(--success); color: var(--background); }
+
+/* Six segments, one per distinct day of evidence. */
+.game-entry__meter { margin-top: 12px; display: flex; gap: 4px; }
+.game-entry__meter i { height: 5px; flex: 1; border-radius: 999px; background: var(--muted); }
+.game-entry__meter i.is-on { background: var(--success); }
+
+.game-entry__stat { margin: 9px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.game-entry__stat strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
+.game-entry__target { color: var(--subtle-foreground); }
+
+.game-entry__actions { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.context-control { position: relative; }
+
+/* Player controls --------------------------------------------------------- */
+.video-cue {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  padding: 14px 20px; display: flex; align-items: center; gap: 10px;
+  border-radius: var(--radius-lg); background: rgba(9, 9, 11, .82); color: #fafafa;
+  font-size: 17px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  pointer-events: none; animation: cue-fade .9s ease forwards;
+}
+.video-cue strong { font-weight: 700; }
+@keyframes cue-fade {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-cue { animation: none; opacity: 1; }
+}
+
+.player-bar { max-width: 1100px; margin: 10px auto 0; padding: 0 2px; display: flex; align-items: center; gap: 10px; }
+.player-bar__group { display: flex; align-items: center; gap: 6px; }
+.player-bar .button.is-active { border-color: var(--border-strong); background: var(--accent); }
+
+.speed-control { position: relative; }
+.speed-menu {
+  position: absolute; z-index: 40; bottom: calc(100% + 6px); left: 0;
+  min-width: 104px; margin: 0; padding: 5px; list-style: none;
+  display: flex; flex-direction: column; gap: 1px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--card); box-shadow: var(--shadow-lg);
+}
+.speed-menu button {
+  width: 100%; height: 30px; padding: 0 9px; display: flex; align-items: center;
+  justify-content: space-between; gap: 10px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--foreground); font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.speed-menu button:hover { background: var(--accent); }
+.speed-menu button.is-active { color: var(--foreground); background: var(--accent); }
+.speed-menu__scrim { position: fixed; z-index: 39; inset: 0; }
+
+.player-hints { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--subtle-foreground); font-size: 11px; }
+.player-hints span { display: inline-flex; align-items: center; gap: 3px; }
+kbd {
+  min-width: 18px; padding: 1px 5px; display: inline-block; text-align: center;
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
+  background: var(--muted); color: var(--muted-foreground);
+  font-family: inherit; font-size: 10px; font-weight: 700; line-height: 1.5;
+}
+
 /* Division browser --------------------------------------------------------- */
 .focus-main--wide { max-width: 1120px; }
 .browse-toolbar { margin-top: 20px; display: flex; align-items: center; gap: 8px; }
@@ -510,6 +590,7 @@ button.time-chip:hover { color: var(--foreground); }
   .video-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .focus-stats { grid-template-columns: 1fr; }
   .focus-main { padding: 24px 14px 60px; }
+  .player-bar { padding: 0 14px; flex-wrap: wrap; }
   .browse-toolbar { flex-wrap: wrap; }
   .browse-row { grid-template-columns: minmax(0, 1fr); }
   .browse-row__actions { justify-content: flex-end; }

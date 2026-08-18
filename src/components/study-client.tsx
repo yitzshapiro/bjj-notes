@@ -9,11 +9,14 @@ import {
   Clock3,
   Download,
   FileText,
+  Gauge,
   ListVideo,
   LoaderCircle,
   Pencil,
   Plus,
   Save,
+  RotateCcw,
+  RotateCw,
   Settings2,
   Star,
   Target,
@@ -30,6 +33,18 @@ import {
   VideoProgress,
 } from "@/lib/client-api";
 import { formatDay, formatDuration, formatFocusAge, formatPercent } from "@/lib/format";
+import {
+  clampTime,
+  DEFAULT_RATE,
+  formatRate,
+  isTypingTarget,
+  loadStoredRate,
+  matchShortcut,
+  PLAYBACK_RATES,
+  SKIP_SECONDS,
+  stepRate,
+  storeRate,
+} from "@/lib/playback-rate";
 import { AppHeader } from "./app-header";
 import { ErrorState, LoadingState, ProgressBar } from "./ui";
 
@@ -294,6 +309,12 @@ export function StudyClient({
   const [runningSaveState, setRunningSaveState] = useState<SaveState>("idle");
   const [mediaBusy, setMediaBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [rate, setRate] = useState(DEFAULT_RATE);
+  const [rateMenuOpen, setRateMenuOpen] = useState(false);
+  const [cue, setCue] = useState<{ id: number; icon: "faster" | "slower" | "back" | "forward"; text: string } | null>(
+    null,
+  );
+  const cueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const restorePlaybackPosition = useCallback((video: HTMLVideoElement) => {
     const target = pendingResumePosition.current;
@@ -406,6 +427,73 @@ export function StudyClient({
     video.currentTime = target;
     void video.play().catch(() => undefined);
   };
+
+  /** Brief centred readout so a shortcut visibly did something. */
+  const showCue = useCallback((icon: "faster" | "slower" | "back" | "forward", text: string) => {
+    setCue({ id: Date.now(), icon, text });
+    if (cueTimer.current) clearTimeout(cueTimer.current);
+    cueTimer.current = setTimeout(() => setCue(null), 900);
+  }, []);
+
+  const applyRate = useCallback(
+    (next: number, announce = true) => {
+      const video = videoRef.current;
+      if (video) video.playbackRate = next;
+      setRate(next);
+      storeRate(next);
+      if (announce) showCue(next > rate ? "faster" : "slower", formatRate(next));
+    },
+    [rate, showCue],
+  );
+
+  /** Nudge from wherever playback is now, without the seek()/autoplay behaviour. */
+  const skipBy = useCallback((seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = clampTime(video.currentTime + seconds, video.duration);
+  }, []);
+
+  // Restore the speed chosen on a previous video. This has to run after mount
+  // rather than as a lazy initial value — the server render cannot read
+  // localStorage, and returning a different value during hydration would
+  // mismatch the rendered "1×".
+  useEffect(() => {
+    const stored = loadStoredRate();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRate(stored);
+    if (videoRef.current) videoRef.current.playbackRate = stored;
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (cueTimer.current) clearTimeout(cueTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (presetManagerOpen) return;
+      if (isTypingTarget(event.target as HTMLElement | null)) return;
+
+      const action = matchShortcut(event);
+      if (!action) return;
+      // Stops the native <video> arrow seek from firing on top of ours.
+      event.preventDefault();
+
+      if (action.type === "rate") {
+        applyRate(stepRate(rate, action.direction));
+        return;
+      }
+      if (action.type === "skip") {
+        skipBy(action.seconds);
+        showCue(action.seconds < 0 ? "back" : "forward", `${Math.abs(action.seconds)}s`);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [applyRate, presetManagerOpen, rate, showCue, skipBy]);
 
   const addNote = async () => {
     if (!newNote.trim()) return;
@@ -560,6 +648,8 @@ export function StudyClient({
                     video.currentTime = pendingSeekPosition.current;
                   }
                 }
+                // A seek can call video.load(), which resets playbackRate to 1.
+                video.playbackRate = rate;
                 setProgress((current) => ({
                   ...current,
                   durationSeconds: Number.isFinite(video.duration)
@@ -604,6 +694,92 @@ export function StudyClient({
                 <LoaderCircle className="spin" size={16} /> Loading video…
               </div>
             ) : null}
+            {cue ? (
+              <div className="video-cue" key={cue.id} aria-hidden="true">
+                {cue.icon === "back" ? <RotateCcw size={20} /> : null}
+                {cue.icon === "forward" ? <RotateCw size={20} /> : null}
+                {cue.icon === "faster" || cue.icon === "slower" ? <Gauge size={20} /> : null}
+                <strong>{cue.text}</strong>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="player-bar">
+            <div className="player-bar__group">
+              <button
+                className="icon-button icon-button--bordered"
+                type="button"
+                title={`Back ${SKIP_SECONDS} seconds (left arrow)`}
+                aria-label={`Skip back ${SKIP_SECONDS} seconds`}
+                onClick={() => {
+                  skipBy(-SKIP_SECONDS);
+                  showCue("back", `${SKIP_SECONDS}s`);
+                }}
+              >
+                <RotateCcw size={16} />
+              </button>
+              <button
+                className="icon-button icon-button--bordered"
+                type="button"
+                title={`Forward ${SKIP_SECONDS} seconds (right arrow)`}
+                aria-label={`Skip forward ${SKIP_SECONDS} seconds`}
+                onClick={() => {
+                  skipBy(SKIP_SECONDS);
+                  showCue("forward", `${SKIP_SECONDS}s`);
+                }}
+              >
+                <RotateCw size={16} />
+              </button>
+            </div>
+
+            <div className="player-bar__group speed-control">
+              <button
+                className={`button button--secondary ${rate !== DEFAULT_RATE ? "is-active" : ""}`}
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={rateMenuOpen}
+                title="Playback speed (shift + . faster, shift + , slower)"
+                onClick={() => setRateMenuOpen((value) => !value)}
+              >
+                <Gauge size={15} />
+                {formatRate(rate)}
+                <ChevronDown size={13} />
+              </button>
+              {rateMenuOpen ? (
+                <>
+                  <div
+                    className="speed-menu__scrim"
+                    role="presentation"
+                    onClick={() => setRateMenuOpen(false)}
+                  />
+                  <ul className="speed-menu" role="listbox" aria-label="Playback speed">
+                    {PLAYBACK_RATES.map((option) => (
+                      <li key={option}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={option === rate}
+                          className={option === rate ? "is-active" : ""}
+                          onClick={() => {
+                            applyRate(option, false);
+                            setRateMenuOpen(false);
+                          }}
+                        >
+                          {formatRate(option)}
+                          {option === rate ? <Check size={13} /> : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+
+            <div className="player-hints desktop-only" aria-hidden="true">
+              <span><kbd>←</kbd><kbd>→</kbd> 10s</span>
+              <span><kbd>shift</kbd>+<kbd>,</kbd> slower</span>
+              <span><kbd>shift</kbd>+<kbd>.</kbd> faster</span>
+            </div>
           </div>
 
           <div className="video-meta-card">

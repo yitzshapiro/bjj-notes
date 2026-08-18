@@ -21,9 +21,11 @@ No deployment is required. In the intended setup, both the browser and Next.js p
 
 - Shows the Drive folder tree without changing its names or nesting.
 - Plays the selected video and restores saved progress.
+- Applies playback-speed and skip shortcuts, keeping the chosen speed across videos.
 - Captures timestamped notes at a playback position and free-form running notes.
 - Applies reusable division labels to video sections and exposes starred/current-focus state.
 - Searches every division in the library and filters it by position, phase, and technique.
+- Maintains My Game and logs each occasion a technique lands.
 - Requests Markdown or JSON exports.
 
 The browser should never receive the Google client secret, Neon connection string, refresh token, or raw database access.
@@ -57,6 +59,8 @@ Neon holds durable app state and a synchronized Drive metadata index. Drizzle mi
 | `video_sections` | Per-video labeled time ranges with starred and focused state. |
 | `tags` | The position/phase/technique vocabulary, addressed by a unique slug. |
 | `section_tags` | Which tags apply to which division, with the source and confidence. |
+| `game_entries` | Techniques claimed into My Game, one per division. |
+| `game_hits` | Dated occasions a technique worked, with the context it worked in. |
 | `game_plans` | Named routes through the library, addressed by a unique slug. |
 | `plan_stages` | Ordered stages within a plan, each with an intent and optional mat test. |
 | `plan_steps` | The divisions one stage drills, each with a role and sort order. |
@@ -66,6 +70,22 @@ App-owned video records reference `drive_items`. Deleting a video record cascade
 A plan step references a division through `section_id`, which is nullable and clears rather than cascades. Each step also stores its own `video_id`, `label`, and `start_seconds`, so re-importing or deleting divisions can never silently delete a plan — a step whose link is broken still resolves a deep link from its own columns. Plans are addressed by slug in the UI; because `id` is a uuid column, a lookup only compares against it when the path segment is actually a uuid.
 
 Plans deliberately store no practice state. Reps stay on `video_sections`, so a plan, the focus board, and the study panel all read and write the same counter.
+
+## Playback controls
+
+Speed stepping, skip distance, and the key-to-action mapping live in `src/lib/playback-rate.ts` as pure functions, so the rules that are easy to get subtly wrong — where a step lands from an off-scale rate, which chords must be ignored, which elements count as typing targets — are unit-tested without a DOM.
+
+Two details are deliberate. Speed steps to the next rate strictly above or below the current one rather than snapping to the nearest and then stepping, so slowing down from an off-scale 1.1× reaches 1× instead of overshooting to 0.75×. And the handler calls `preventDefault()` on the arrow keys, because a focused `<video controls>` element seeks 5 seconds natively and would otherwise compound with the app's 10-second step.
+
+The selected rate is persisted in `localStorage` and re-applied on `loadedmetadata`, since a seek that calls `video.load()` resets `playbackRate` to 1.
+
+## My Game and evidence
+
+Three records of a technique coexist deliberately, because they answer different questions. `video_sections.practice_count` counts drilling. `plan_steps` records what you intend to learn. `game_entries` plus `game_hits` records what you are trying to land and when it worked.
+
+Hits are stored as rows rather than a counter so the history stays interrogable. A counter cannot distinguish four hits in one round from four hits across a month, and that distinction is the entire signal — so `src/lib/game-status.ts` derives status from *distinct local calendar days*, excluding drilling contexts. Status is therefore evidence, not a label, and cannot be inflated in a single session. This is the same principle a belt-requirements view would need, and the hit log is the data it would read.
+
+`game_entries.section_id` is unique and nullable: unique so a division cannot be claimed twice, nullable so re-importing divisions clears the link rather than deleting the entry. Deleting an entry cascades to its hits.
 
 ## Division tagging
 

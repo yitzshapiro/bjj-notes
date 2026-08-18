@@ -166,6 +166,56 @@ export const sectionTags = pgTable(
 );
 
 /**
+ * The techniques you have claimed as your own. Distinct from a game plan, which
+ * is what you intend to learn, and from `practice_count`, which counts drilling
+ * — an entry here is something you are actively trying to land.
+ */
+export const gameEntries = pgTable(
+  "game_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Denormalized alongside the link for the same reason as `plan_steps`: a
+    // re-import of divisions must never quietly empty your game.
+    sectionId: uuid("section_id").references(() => videoSections.id, { onDelete: "set null" }),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => driveItems.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    startSeconds: real("start_seconds").notNull(),
+    note: text("note"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("game_entries_section_unique").on(table.sectionId),
+    index("game_entries_added_idx").on(table.addedAt),
+  ],
+);
+
+/**
+ * One dated occasion a technique actually worked. Stored as events rather than a
+ * counter so "landed it three times, on three different days, in live rolling"
+ * stays answerable — a tally cannot distinguish that from three in one round.
+ */
+export const gameHits = pgTable(
+  "game_hits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => gameEntries.id, { onDelete: "cascade" }),
+    hitAt: timestamp("hit_at", { withTimezone: true }).notNull().defaultNow(),
+    context: text("context", { enum: ["drilling", "positional", "live", "competition"] })
+      .notNull()
+      .default("live"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("game_hits_entry_idx").on(table.entryId, table.hitAt)],
+);
+
+/**
  * A named route through the library: ordered stages of divisions that build one
  * skill. Reps are not stored here — a step points at the division it drills, so
  * `video_sections.practice_count` stays the single record of what was trained.
@@ -241,6 +291,8 @@ export type DivisionPreset = typeof divisionPresets.$inferSelect;
 export type VideoSection = typeof videoSections.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type SectionTag = typeof sectionTags.$inferSelect;
+export type GameEntry = typeof gameEntries.$inferSelect;
+export type GameHit = typeof gameHits.$inferSelect;
 export type GamePlan = typeof gamePlans.$inferSelect;
 export type PlanStage = typeof planStages.$inferSelect;
 export type PlanStep = typeof planSteps.$inferSelect;

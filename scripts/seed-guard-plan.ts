@@ -1,5 +1,5 @@
 /**
- * Seeds the "Pull Guard → Offensive Round" game plan.
+ * Seeds the "In Guard → Immediate Attack" game plan.
  *
  * Every step is matched to an existing division by (video path, start time), so
  * the script never invents a timestamp — if a division has moved or is missing,
@@ -8,7 +8,7 @@
  * Usage: pnpm seed:guard-path [--apply]
  */
 import { loadEnvConfig } from "@next/env";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 loadEnvConfig(process.cwd());
 
@@ -33,116 +33,124 @@ type SeedStage = {
 };
 
 const PLAN = {
-  slug: "guard-pull-offense",
-  name: "Pull Guard → Offensive Round",
-  goal: "Arrive on the floor already attacking. Seven stages from the grip that starts the pull through to the submission that makes a sweep unanswerable.",
+  slug: "guard-attack-system",
+  name: "In Guard → Immediate Attack",
+  goal: "However you got there — swept, stuffed on a shot, out of a scramble, or off a pull — guard is a position you attack from on arrival. Seven stages from the first three seconds to the submission that makes a sweep unanswerable.",
 };
 
-const F2F_PULL = "Volume 3";
-const F2F_STAND = "Volume 1 - Fundamental Standing Skills";
+/** Superseded by the plan above; removed on apply so it does not linger. */
+const REPLACED_SLUGS = ["guard-pull-offense"];
+
 const OG1 = "Open Guard Volume 1 - The Two Foundations of Guard Play";
+const GFF_OG = "Open Guard";
+const GFF_CG = "Closed Guard";
+const NOGI_HG = "No-Gi Half Guard - 3 Directions of Attack";
 const OG2 = "Open Guard Volume 2 - Sweeps & Reversals";
 const RETENTION = "Guard Retention";
 const TRIANGLES = "Triangles";
 
 const STAGES: SeedStage[] = [
   {
-    name: "The pull is an attack, not a retreat",
+    name: "The first three seconds",
     timeframe: "Weeks 1–2",
     intent:
-      "A pull that leads to a defensive round almost always happens before a grip is established, so you arrive already conceding. Pick the grip first and the pull becomes a delivery system.",
+      "Whatever put you on the bottom, the opening move is the same: get a connection and a grip before your opponent gets theirs. Whoever grips first dictates the exchange, and everything later in this plan assumes you won that moment.",
     matTest:
-      "Pull only with a named grip for two weeks. If you cannot name the grip as you sit, stay standing. Log which of the four you actually get.",
-    steps: [
-      { folder: F2F_PULL, video: "Volume 1 - Introduction, Grips for Rolling Knee Bar, Pulling Guard.mp4", at: "45:21", role: "concept" },
-      { folder: F2F_PULL, video: "Volume 1 - Introduction, Grips for Rolling Knee Bar, Pulling Guard.mp4", at: "26:22", role: "entry" },
-      { folder: F2F_PULL, video: "Volume 1 - Introduction, Grips for Rolling Knee Bar, Pulling Guard.mp4", at: "32:56", role: "entry" },
-      { folder: F2F_PULL, video: "Volume 1 - Introduction, Grips for Rolling Knee Bar, Pulling Guard.mp4", at: "38:52", role: "entry" },
-      { folder: F2F_PULL, video: "Volume 1 - Introduction, Grips for Rolling Knee Bar, Pulling Guard.mp4", at: "41:38", role: "entry" },
-      { folder: F2F_STAND, video: "Volume 3 - Motion, Kuzushi, Position.mp4", at: "69:09", role: "concept" },
-      { folder: F2F_STAND, video: "Volume 3 - Motion, Kuzushi, Position.mp4", at: "71:22", role: "concept" },
-    ],
-  },
-  {
-    name: "Pull straight into the sweep",
-    timeframe: "Weeks 3–4",
-    intent:
-      "The most direct answer to the problem: you never play guard at all, the pull is the sweep, and you arrive on top. The highest-leverage volume in the library for this.",
-    matTest:
-      "Pick one — X guard or double kouchi, not both. Ten pulls a session into that single sweep until it lands on a resisting partner.",
-    steps: [
-      { folder: F2F_PULL, video: "Volume 2 - Pulling to a Sweep.mp4", at: "0:00", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 2 - Pulling to a Sweep.mp4", at: "22:54", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 2 - Pulling to a Sweep.mp4", at: "35:33", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 2 - Pulling to a Sweep.mp4", at: "51:57", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 2 - Pulling to a Sweep.mp4", at: "63:12", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 2 - Pulling to a Sweep.mp4", at: "99:47", role: "attack" },
-    ],
-  },
-  {
-    name: "When the sweep isn't there, pull to advantage",
-    timeframe: "Weeks 5–6",
-    intent:
-      "The sweep fails against anyone good. This is the fallback layer — pull into a position that already carries a threat, so a failed sweep still leaves you attacking instead of surviving.",
-    steps: [
-      { folder: F2F_PULL, video: "Volume 3 - Pulling to Advantage.mp4", at: "0:00", role: "concept" },
-      { folder: F2F_PULL, video: "Volume 3 - Pulling to Advantage.mp4", at: "8:36", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 3 - Pulling to Advantage.mp4", at: "14:46", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 3 - Pulling to Advantage.mp4", at: "33:27", role: "control" },
-      { folder: F2F_PULL, video: "Volume 3 - Pulling to Advantage.mp4", at: "45:48", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 3 - Pulling to Advantage.mp4", at: "60:43", role: "attack" },
-    ],
-  },
-  {
-    name: "Make the guard itself offensive",
-    timeframe: "Weeks 7–8",
-    intent:
-      "The theory stage — the one that changes what you are doing in every guard, not only off the pull. Danaher's thesis is two things: connection, and constant threat. A guard without both is a waiting room.",
-    matTest:
-      "Positional rounds only: start seated, partner kneeling. You win the round by establishing a named grip within five seconds. Nothing else counts.",
+      "For two weeks the only thing you judge is whether you have a named grip within three seconds of your back touching the mat. Not the sweep, not the submission — the grip.",
     steps: [
       { folder: OG1, video: "Volume 1 - Connection & Grip.mp4", at: "14:07", role: "concept" },
       { folder: OG1, video: "Volume 1 - Connection & Grip.mp4", at: "44:40", role: "concept" },
       { folder: OG1, video: "Volume 1 - Connection & Grip.mp4", at: "52:59", role: "control" },
-      { folder: OG1, video: "Volume 2 - Dynamic Energy, Retention, 6 Elements.mp4", at: "0:00", role: "concept" },
+      { folder: GFF_OG, video: "Volume 2 - Balancing Retention & Offense.mp4", at: "47:37", role: "concept" },
       { folder: OG1, video: "Volume 2 - Dynamic Energy, Retention, 6 Elements.mp4", at: "36:10", role: "concept" },
       { folder: OG1, video: "Volume 2 - Dynamic Energy, Retention, 6 Elements.mp4", at: "38:09", role: "concept" },
+    ],
+  },
+  {
+    name: "Know which guard you are in",
+    timeframe: "Week 3",
+    intent:
+      "Four situations, four different first moves — closed, half, open in front of you, or someone already working inside your legs. This is the branch point of the whole game plan: naming the position is what turns a scramble into a plan.",
+    matTest:
+      "Say the position out loud the moment you land in it. If you cannot name it inside a second, that is the hole to work on, not the technique.",
+    steps: [
+      { folder: GFF_OG, video: "Volume 1 - Introduction & Theory.mp4", at: "19:42", role: "concept" },
+      { folder: GFF_OG, video: "Volume 1 - Introduction & Theory.mp4", at: "14:18", role: "concept" },
+      { folder: GFF_OG, video: "Volume 1 - Introduction & Theory.mp4", at: "74:46", role: "concept" },
+      { folder: GFF_OG, video: "Volume 2 - Balancing Retention & Offense.mp4", at: "0:00", role: "concept" },
       { folder: OG1, video: "Volume 5 - Constant Threat, Attack the Legs.mp4", at: "0:00", role: "concept" },
       { folder: OG1, video: "Volume 5 - Constant Threat, Attack the Legs.mp4", at: "4:57", role: "concept" },
     ],
   },
   {
-    name: "Three sweeps, not thirty",
-    timeframe: "Weeks 9–10",
+    name: "Closed guard: break posture, then attack",
+    timeframe: "Weeks 4–5",
     intent:
-      "The library holds well over a hundred sweeps. Depth beats breadth at every belt below black — pick three that share an entry and let the shared grip do the work.",
+      "If your legs are already locked you have the most control you will get all round. Nothing works until posture is broken, and once it is, the side scissor opens the whole tree.",
+    matTest:
+      "From closed guard you may only win the round by breaking posture first. If their posture is still up when you attack, that round does not count.",
     steps: [
-      { folder: OG2, video: "Volume 2 - Wrestling Reversals 1.mp4", at: "26:21", role: "attack" },
-      { folder: OG2, video: "Volume 2 - Wrestling Reversals 1.mp4", at: "71:49", role: "attack" },
-      { folder: OG2, video: "Volume 2 - Wrestling Reversals 1.mp4", at: "52:00", role: "concept" },
-      { folder: OG2, video: "Volume 3 - Wrestling Reversals 2.mp4", at: "0:00", role: "attack" },
-      { folder: OG2, video: "Volume 3 - Wrestling Reversals 2.mp4", at: "63:19", role: "attack" },
-      { folder: OG2, video: "Volume 4 - Sumi Gaeshi.mp4", at: "3:48", role: "attack" },
-      { folder: OG2, video: "Volume 4 - Sumi Gaeshi.mp4", at: "26:19", role: "control" },
+      { folder: GFF_CG, video: "Volume 2 - Understanding Closed Guard.mp4", at: "31:16", role: "control" },
+      { folder: GFF_CG, video: "Volume 2 - Understanding Closed Guard.mp4", at: "71:58", role: "concept" },
+      { folder: GFF_CG, video: "Volume 3 - The Side Scissor.mp4", at: "0:00", role: "entry" },
+      { folder: GFF_CG, video: "Volume 3 - The Side Scissor.mp4", at: "41:54", role: "attack" },
+      { folder: GFF_CG, video: "Volume 3 - The Side Scissor.mp4", at: "51:06", role: "attack" },
+      { folder: GFF_CG, video: "Volume 3 - The Side Scissor.mp4", at: "56:17", role: "attack" },
+      { folder: GFF_CG, video: "Volume 4 - Top Lock:Armbar.mp4", at: "0:00", role: "control" },
+      { folder: GFF_CG, video: "Volume 4 - Top Lock:Armbar.mp4", at: "44:01", role: "attack" },
     ],
   },
   {
-    name: "Attach a submission so the sweep becomes a dilemma",
-    timeframe: "Weeks 11–12",
+    name: "Half guard: three directions of attack",
+    timeframe: "Weeks 6–7",
     intent:
-      "A sweep alone gets defended. A sweep that punishes the defence with a strangle is what makes a guard offensive — the opponent has to be wrong somewhere. Every entry here comes off the 2-on-1 from stage 4.",
+      "The guard you land in most often when a pass is half-finished. Danaher's framing is the useful part: half guard attacks in three directions, so being stuck underneath is a choice rather than a fact.",
+    matTest:
+      "Start every round already in bottom half. You are not allowed to recover full guard — attack from where you are.",
+    steps: [
+      { folder: NOGI_HG, video: "Volume 1 - Overview.mp4", at: "44:46", role: "concept" },
+      { folder: NOGI_HG, video: "Volume 1 - Overview.mp4", at: "63:25", role: "concept" },
+      { folder: NOGI_HG, video: "Volume 2 - Making Half Guard Work for You.mp4", at: "0:00", role: "control" },
+      { folder: NOGI_HG, video: "Volume 2 - Making Half Guard Work for You.mp4", at: "23:24", role: "concept" },
+      { folder: NOGI_HG, video: "Volume 2 - Making Half Guard Work for You.mp4", at: "28:18", role: "attack" },
+      { folder: NOGI_HG, video: "Volume 5 - Knee Levers.mp4", at: "0:00", role: "concept" },
+      { folder: NOGI_HG, video: "Volume 5 - Knee Levers.mp4", at: "41:12", role: "attack" },
+      { folder: NOGI_HG, video: "Volume 5 - Knee Levers.mp4", at: "44:29", role: "attack" },
+    ],
+  },
+  {
+    name: "Seated and open guard: constant threat",
+    timeframe: "Weeks 8–9",
+    intent:
+      "Sitting up in front of a standing or kneeling opponent is the most common place to end up and the easiest place to stall. Three reversals that share an entry beat thirty that do not.",
+    steps: [
+      { folder: GFF_OG, video: "Volume 3 - Practical Application, Attacking on Two Knees, Hook Sweep.mp4", at: "0:00", role: "attack" },
+      { folder: GFF_OG, video: "Volume 3 - Practical Application, Attacking on Two Knees, Hook Sweep.mp4", at: "10:06", role: "concept" },
+      { folder: OG2, video: "Volume 2 - Wrestling Reversals 1.mp4", at: "26:21", role: "attack" },
+      { folder: OG2, video: "Volume 2 - Wrestling Reversals 1.mp4", at: "71:49", role: "attack" },
+      { folder: OG2, video: "Volume 3 - Wrestling Reversals 2.mp4", at: "0:00", role: "attack" },
+      { folder: OG2, video: "Volume 3 - Wrestling Reversals 2.mp4", at: "63:19", role: "attack" },
+      { folder: OG2, video: "Volume 4 - Sumi Gaeshi.mp4", at: "3:48", role: "attack" },
+    ],
+  },
+  {
+    name: "Make every sweep a submission threat",
+    timeframe: "Weeks 10–11",
+    intent:
+      "A sweep alone gets defended. A sweep that punishes the defence with a strangle is what makes a guard genuinely offensive — the opponent has to be wrong somewhere. Every entry here comes off the 2-on-1 from stage 1.",
     steps: [
       { folder: OG2, video: "Volume 5 - Upper Body Submissions, Triangle Entries, Clamp.mp4", at: "4:29", role: "attack" },
       { folder: OG2, video: "Volume 5 - Upper Body Submissions, Triangle Entries, Clamp.mp4", at: "35:05", role: "control" },
       { folder: OG2, video: "Volume 5 - Upper Body Submissions, Triangle Entries, Clamp.mp4", at: "49:29", role: "attack" },
       { folder: TRIANGLES, video: "Volume 2 - Front Triangle Part 1.mp4", at: "47:26", role: "entry" },
       { folder: TRIANGLES, video: "Volume 2 - Front Triangle Part 1.mp4", at: "52:36", role: "control" },
-      { folder: F2F_PULL, video: "Volume 5 - Submission Off the Pull, Guard Pull Negation.mp4", at: "45:37", role: "attack" },
-      { folder: F2F_PULL, video: "Volume 5 - Submission Off the Pull, Guard Pull Negation.mp4", at: "107:29", role: "attack" },
+      { folder: NOGI_HG, video: "Volume 6 - Elbow Escape, Ude Gatame, Scoop Scorpion.mp4", at: "40:24", role: "attack" },
+      { folder: NOGI_HG, video: "Volume 6 - Elbow Escape, Ude Gatame, Scoop Scorpion.mp4", at: "45:43", role: "attack" },
+      { folder: NOGI_HG, video: "Volume 6 - Elbow Escape, Ude Gatame, Scoop Scorpion.mp4", at: "50:34", role: "attack" },
     ],
   },
   {
-    name: "The tax: don't lose the guard you pulled",
+    name: "The tax: don't lose the guard you are in",
     timeframe: "Ongoing",
     intent:
       "Runs in parallel with everything above, ten minutes a session. No offensive guard survives without retention, and this set is organised around the four passes you will actually meet.",
@@ -253,7 +261,7 @@ async function main() {
 
   // Replace the plan wholesale so re-running is idempotent. Cascades clear the
   // old stages and steps; nothing on video_sections is touched, so reps survive.
-  await db.delete(gamePlans).where(eq(gamePlans.slug, PLAN.slug));
+  await db.delete(gamePlans).where(inArray(gamePlans.slug, [PLAN.slug, ...REPLACED_SLUGS]));
 
   const [plan] = await db
     .insert(gamePlans)

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ClipboardList, Map, Repeat, Target } from "lucide-react";
+import { Check, ClipboardList, Map, Repeat, Swords, Target } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, GamePlanSummary, PlanDetail, PlanStage, PlanStep, StepRole } from "@/lib/client-api";
 import { formatDay, formatDuration } from "@/lib/format";
@@ -28,12 +28,15 @@ function StepRow({
   busy,
   onPractice,
   onFocus,
+  onToggleGame,
 }: {
   step: PlanStep;
   busy: boolean;
   onPractice: () => void;
   onFocus: () => void;
+  onToggleGame: () => void;
 }) {
+  const inGame = Boolean(step.gameEntryId);
   const detail = step.lastPracticedAt
     ? `Practiced ${formatDay(step.lastPracticedAt)}`
     : step.video.name;
@@ -59,6 +62,17 @@ function StepRow({
         ) : null}
         {step.sectionId ? (
           <>
+            <button
+              className={`icon-button icon-button--small ${inGame ? "is-in-game" : ""}`}
+              type="button"
+              disabled={busy}
+              aria-label={inGame ? `Remove ${step.label} from My Game` : `Add ${step.label} to My Game`}
+              aria-pressed={inGame}
+              title={inGame ? "In My Game — click to remove" : "Add to My Game"}
+              onClick={onToggleGame}
+            >
+              <Swords size={14} />
+            </button>
             <button
               className={`icon-button icon-button--small ${step.focused ? "is-focused" : ""}`}
               type="button"
@@ -95,12 +109,14 @@ function StageCard({
   busyId,
   onStep,
   onFocusStage,
+  onToggleGame,
 }: {
   stage: PlanStage;
   index: number;
   busyId: string | null;
   onStep: (step: PlanStep, changes: { focused?: boolean; markPracticed?: boolean }) => void;
   onFocusStage: (stage: PlanStage, focused: boolean) => void;
+  onToggleGame: (step: PlanStep) => void;
 }) {
   const drillable = stage.steps.filter(isDrillable);
   const drilled = drillable.filter((step) => step.practiceCount > 0).length;
@@ -143,6 +159,7 @@ function StageCard({
             busy={busyId === step.id}
             onPractice={() => onStep(step, { markPracticed: true })}
             onFocus={() => onStep(step, { focused: !step.focused })}
+            onToggleGame={() => onToggleGame(step)}
           />
         ))}
       </div>
@@ -209,6 +226,24 @@ export function PlanDetailClient({ slug }: { slug: string }) {
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "That change could not be saved.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleGame = async (step: PlanStep) => {
+    if (!step.sectionId) return;
+    setBusyId(step.id);
+    try {
+      if (step.gameEntryId) {
+        await api.removeFromGame(step.sectionId);
+        applyStep(step.id, { gameEntryId: null });
+      } else {
+        const { entry } = await api.addToGame(step.sectionId);
+        applyStep(step.id, { gameEntryId: entry.id });
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "My Game could not be updated.");
     } finally {
       setBusyId(null);
     }
@@ -300,6 +335,7 @@ export function PlanDetailClient({ slug }: { slug: string }) {
                   busyId={busyId}
                   onStep={onStep}
                   onFocusStage={onFocusStage}
+                  onToggleGame={(step) => void toggleGame(step)}
                 />
               ))}
             </div>

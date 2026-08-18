@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, LogOut, Map, Menu, Search, Target, X } from "lucide-react";
+import { BookOpen, LogOut, Map, Menu, Search, Swords, Target, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/library", label: "Library", icon: BookOpen },
   { href: "/divisions", label: "Divisions", icon: Search },
   { href: "/plans", label: "Plans", icon: Map },
+  { href: "/game", label: "My Game", icon: Swords },
   { href: "/focus", label: "Focus", icon: Target },
 ];
 

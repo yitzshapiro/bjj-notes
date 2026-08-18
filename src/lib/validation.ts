@@ -74,6 +74,22 @@ export const sectionUpdateInput = z
 
 export const sectionScope = z.enum(["all", "focus", "practiced", "starred"]).catch("all");
 
+export const gameEntryCreateInput = z
+  .object({
+    sectionId: z.uuid(),
+    note: z.string().trim().max(2_000).nullable().optional(),
+  })
+  .strict();
+
+export const gameHitCreateInput = z
+  .object({
+    context: z.enum(["drilling", "positional", "live", "competition"]).optional(),
+    note: z.string().trim().max(2_000).nullable().optional(),
+    /** Lets last night's session be logged the morning after. */
+    hitAt: z.iso.datetime({ offset: true }).optional(),
+  })
+  .strict();
+
 /** Query parameters for the global division browser. */
 export const divisionQuery = z
   .object({
