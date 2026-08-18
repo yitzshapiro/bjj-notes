@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
@@ -152,9 +152,12 @@ function VideoCard({ node }: { node: LibraryNode }) {
 
 export function LibraryClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // `?folder=` lets the study breadcrumb link straight to a folder.
+  const requestedFolderId = searchParams.get("folder");
   const [library, setLibrary] = useState<LibraryPayload | null>(null);
   const [divisions, setDivisions] = useState<LibraryDivision[]>([]);
-  const [activeFolderId, setActiveFolderId] = useState("root");
+  const [activeFolderId, setActiveFolderId] = useState(requestedFolderId ?? "root");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -200,6 +203,20 @@ export function LibraryClient() {
       setSyncing(false);
     }
   };
+
+  const selectFolder = useCallback(
+    (id: string) => {
+      setActiveFolderId(id);
+      // replace, not push: walking the sidebar should not bury the page the user
+      // arrived from under a stack of folder history entries.
+      const params = new URLSearchParams(searchParams.toString());
+      if (id === library?.root.id) params.delete("folder");
+      else params.set("folder", id);
+      const query = params.toString();
+      router.replace(query ? `/library?${query}` : "/library", { scroll: false });
+    },
+    [library?.root.id, router, searchParams],
+  );
 
   const allNodes = useMemo(() => (library ? flatten(library.root) : []), [library]);
   const activeFolder = allNodes.find((node) => node.id === activeFolderId) ?? library?.root;
@@ -272,7 +289,7 @@ export function LibraryClient() {
         <aside className="library-sidebar" aria-label="Drive folders">
           <div className="eyebrow">Google Drive</div>
           <ul className="tree-list">
-            <TreeBranch node={library.root} activeId={activeFolderId} onSelect={setActiveFolderId} />
+            <TreeBranch node={library.root} activeId={activeFolderId} onSelect={selectFolder} />
           </ul>
           <div className="sidebar-sync">
             <Cloud size={15} />
@@ -437,7 +454,7 @@ export function LibraryClient() {
                         {index ? <ChevronRight size={13} /> : null}
                         <button
                           type="button"
-                          onClick={() => setActiveFolderId(node.id)}
+                          onClick={() => selectFolder(node.id)}
                           aria-current={index === activePath.length - 1 ? "page" : undefined}
                         >
                           {node.name}
@@ -456,7 +473,7 @@ export function LibraryClient() {
                         key={folder.id}
                         className="folder-card"
                         type="button"
-                        onClick={() => setActiveFolderId(folder.id)}
+                        onClick={() => selectFolder(folder.id)}
                       >
                         <Folder size={16} />
                         <strong>{folder.name}</strong>

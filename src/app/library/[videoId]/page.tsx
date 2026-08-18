@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { StudyClient } from "@/components/study-client";
 import { AuthRequiredError, requireAuth } from "@/lib/auth-guard";
-import { assertActiveVideo, GoogleDriveError } from "@/lib/drive";
+import { assertActiveVideo, folderTrail, GoogleDriveError } from "@/lib/drive";
 import { createPlaybackToken } from "@/lib/playback-token";
 
 export default async function VideoStudyPage({
@@ -25,6 +25,7 @@ export default async function VideoStudyPage({
     throw error;
   }
 
+  const trail = await folderTrail(video.parentId);
   const version = String(video.driveModifiedAt?.getTime() ?? video.updatedAt.getTime());
   const playbackToken = createPlaybackToken({
     videoId: video.id,
@@ -38,6 +39,7 @@ export default async function VideoStudyPage({
       initialName={video.name}
       initialDuration={video.durationMs ? video.durationMs / 1000 : 0}
       initialSeek={Math.max(0, Number(t) || 0)}
+      trail={trail}
       playbackToken={playbackToken}
       streamVersion={version}
     />

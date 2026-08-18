@@ -57,6 +57,8 @@ export type StudySection = {
   practiceCount: number;
   lastPracticedAt?: string | null;
   presetId?: string | null;
+  /** Non-null when this division is in My Game. Absent from write responses. */
+  gameEntryId?: string | null;
 };
 
 /** A division plus the video it lives in, for views that span the whole library. */

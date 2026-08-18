@@ -19,6 +19,7 @@ import {
   RotateCw,
   Settings2,
   Star,
+  Swords,
   Target,
   Trash2,
   X,
@@ -45,6 +46,7 @@ import {
   stepRate,
   storeRate,
 } from "@/lib/playback-rate";
+import type { BreadcrumbFolder } from "@/lib/drive";
 import { AppHeader } from "./app-header";
 import { ErrorState, LoadingState, ProgressBar } from "./ui";
 
@@ -266,6 +268,7 @@ export function StudyClient({
   initialName,
   initialDuration,
   initialSeek = 0,
+  trail = [],
   playbackToken,
   streamVersion,
 }: {
@@ -273,6 +276,7 @@ export function StudyClient({
   initialName: string;
   initialDuration: number;
   initialSeek?: number;
+  trail?: BreadcrumbFolder[];
   playbackToken: string;
   streamVersion: string;
 }) {
@@ -305,7 +309,8 @@ export function StudyClient({
   const [sectionEnd, setSectionEnd] = useState<number | "">("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [progressFailed, setProgressFailed] = useState(false);
+  const [noteFailed, setNoteFailed] = useState(false);
   const [runningSaveState, setRunningSaveState] = useState<SaveState>("idle");
   const [mediaBusy, setMediaBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -376,16 +381,20 @@ export function StudyClient({
     [],
   );
 
+  /**
+   * Playback position saves on a timer while the video runs, so success is
+   * silent — a "Saved" badge every fifteen seconds is noise about work the user
+   * never asked for. A failure still surfaces, because that one costs you your
+   * place in a two-hour video.
+   */
   const saveProgress = useCallback(
     async (next: Partial<VideoProgress>) => {
-      setSaveState("saving");
       try {
         const saved = await api.saveProgress(videoId, next);
         setProgress((current) => ({ ...current, ...next, ...saved }));
-        setSaveState("saved");
-        window.setTimeout(() => setSaveState("idle"), 1600);
+        setProgressFailed(false);
       } catch {
-        setSaveState("error");
+        setProgressFailed(true);
       }
     },
     [videoId],
@@ -497,7 +506,7 @@ export function StudyClient({
 
   const addNote = async () => {
     if (!newNote.trim()) return;
-    setSaveState("saving");
+    setNoteFailed(false);
     try {
       const note = await api.saveNote(videoId, {
         timestampSeconds: videoRef.current?.currentTime ?? progress.positionSeconds,
@@ -507,9 +516,10 @@ export function StudyClient({
         [...current, note].sort((a, b) => a.timestampSeconds - b.timestampSeconds),
       );
       setNewNote("");
-      setSaveState("saved");
+      // The note appearing in the list below is the confirmation; a badge would
+      // only repeat what the user can already see.
     } catch {
-      setSaveState("error");
+      setNoteFailed(true);
     }
   };
 
@@ -549,6 +559,32 @@ export function StudyClient({
     setSectionEnd("");
   };
 
+  const toggleSectionInGame = async (section: StudySection) => {
+    const inGame = Boolean(section.gameEntryId);
+    // Optimistic: the button is on the mat-side of the app and should feel instant.
+    setSections((current) =>
+      current.map((item) =>
+        item.id === section.id ? { ...item, gameEntryId: inGame ? null : "pending" } : item,
+      ),
+    );
+    try {
+      if (inGame) {
+        await api.removeFromGame(section.id);
+      } else {
+        const { entry } = await api.addToGame(section.id);
+        setSections((current) =>
+          current.map((item) => (item.id === section.id ? { ...item, gameEntryId: entry.id } : item)),
+        );
+      }
+    } catch {
+      setSections((current) =>
+        current.map((item) =>
+          item.id === section.id ? { ...item, gameEntryId: section.gameEntryId ?? null } : item,
+        ),
+      );
+    }
+  };
+
   const updateSection = async (
     section: StudySection,
     change: { starred?: boolean; focused?: boolean; markPracticed?: boolean },
@@ -563,7 +599,11 @@ export function StudyClient({
     setSections((current) => current.map((item) => (item.id === section.id ? optimistic : item)));
     try {
       const saved = await api.saveSection(videoId, { id: section.id, ...change });
-      setSections((current) => current.map((item) => (item.id === section.id ? saved : item)));
+      // Merge rather than replace: the write response has no gameEntryId, and
+      // overwriting the row would drop the My Game badge until a reload.
+      setSections((current) =>
+        current.map((item) => (item.id === section.id ? { ...item, ...saved } : item)),
+      );
     } catch {
       setSections((current) => current.map((item) => (item.id === section.id ? section : item)));
     }
@@ -619,13 +659,24 @@ export function StudyClient({
       />
       <main className="study-layout">
         <section className="video-workspace">
-          <div className="study-breadcrumb">
-            <Link href="/library">
-              <ArrowLeft size={14} /> Library
+          <nav className="study-breadcrumb" aria-label="Location">
+            <Link className="study-breadcrumb__back" href="/library" aria-label="Back to the library">
+              <ArrowLeft size={14} />
             </Link>
-            <span>/</span>
-            <span className="truncate">{title}</span>
-          </div>
+            {/* The root folder is what /library already shows, so it links there
+                rather than repeating itself as a folder query. */}
+            {trail.map((folder) => (
+              <span className="study-breadcrumb__crumb" key={folder.id}>
+                <Link href={folder.isRoot ? "/library" : `/library?folder=${encodeURIComponent(folder.id)}`}>
+                  {folder.name}
+                </Link>
+                <span aria-hidden="true">/</span>
+              </span>
+            ))}
+            <span className="study-breadcrumb__current" aria-current="page" title={title}>
+              {title}
+            </span>
+          </nav>
 
           <div className="video-frame">
             <video
@@ -808,7 +859,12 @@ export function StudyClient({
             <div className="playback-progress">
               <div>
                 <span>{formatDuration(progress.positionSeconds)}</span>
-                <SaveIndicator state={saveState} />
+                {progressFailed ? (
+                  <span className="save-indicator save-indicator--error" role="status">
+                    <X size={12} />
+                    Position not saved
+                  </span>
+                ) : null}
                 <span>{formatDuration(duration)}</span>
               </div>
               <ProgressBar value={progressRatio} label={`${formatPercent(progressRatio)} watched`} />
@@ -897,6 +953,11 @@ export function StudyClient({
                   >
                     <Plus size={15} /> Add at {formatDuration(progress.positionSeconds)}
                   </button>
+                  {noteFailed ? (
+                    <p className="composer-error" role="alert">
+                      That note could not be saved. Check your connection and add it again.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="timestamp-list">
                   {sortedNotes.map((note) => (
@@ -1074,6 +1135,20 @@ export function StudyClient({
                               ×{section.practiceCount}
                             </span>
                           ) : null}
+                          <button
+                            className={`icon-button icon-button--small ${section.gameEntryId ? "is-in-game" : ""}`}
+                            type="button"
+                            aria-label={
+                              section.gameEntryId
+                                ? `Remove ${section.label} from My Game`
+                                : `Add ${section.label} to My Game`
+                            }
+                            aria-pressed={Boolean(section.gameEntryId)}
+                            title={section.gameEntryId ? "In My Game — click to remove" : "Add to My Game"}
+                            onClick={() => void toggleSectionInGame(section)}
+                          >
+                            <Swords size={14} />
+                          </button>
                           <button
                             className={`icon-button icon-button--small ${section.starred ? "is-starred" : ""}`}
                             type="button"

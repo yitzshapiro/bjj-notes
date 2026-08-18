@@ -199,6 +199,7 @@ html[data-theme="dark"] .theme-toggle__sun { display: block; }
 .save-indicator { display: inline-flex; align-items: center; gap: 4px; color: var(--muted-foreground); font-size: 11px; font-weight: 600; }
 .save-indicator--saved { color: var(--success); }
 .save-indicator--error { color: var(--destructive); }
+.composer-error { margin: 8px 0 0; color: var(--destructive); font-size: 12px; line-height: 1.45; }
 
 .empty-state { padding: 56px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); }
 .empty-state > span { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius); color: var(--muted-foreground); background: var(--muted); }
@@ -521,9 +522,15 @@ kbd {
 .study-page .app-header { position: relative; }
 .study-layout { height: calc(100vh - var(--header-height)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 28vw); }
 .video-workspace { min-width: 0; padding: 16px clamp(16px, 2.5vw, 36px) 32px; overflow: auto; }
-.study-breadcrumb { max-width: 1100px; margin: 0 auto 12px; display: flex; align-items: center; gap: 7px; color: var(--subtle-foreground); font-size: 12px; }
-.study-breadcrumb a { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-weight: 600; }
-.study-breadcrumb a:hover { color: var(--foreground); }
+.study-breadcrumb { max-width: 1100px; margin: 0 auto 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 3px 7px; color: var(--muted-foreground); font-size: 12px; }
+.study-breadcrumb a { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-weight: 600; border-radius: var(--radius-sm); }
+.study-breadcrumb a:hover { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+.study-breadcrumb__back { flex: 0 0 auto; }
+/* Each crumb keeps its separator glued to it so a wrap never orphans a slash. */
+.study-breadcrumb__crumb { min-width: 0; display: inline-flex; align-items: center; gap: 7px; }
+.study-breadcrumb__crumb a { max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.study-breadcrumb__crumb > span { color: var(--subtle-foreground); }
+.study-breadcrumb__current { min-width: 0; overflow: hidden; color: var(--foreground); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .video-frame { max-width: 1100px; margin: 0 auto; position: relative; overflow: hidden; aspect-ratio: 16 / 9; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--video-frame); }
 .video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; }
 .video-buffering { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); padding: 6px 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: var(--radius); color: #fafafa; background: rgba(9, 9, 11, .8); font-size: 12px; font-weight: 600; pointer-events: none; }

@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/db";
-import { runningNotes, timestampedNotes, videoProgress, videoSections } from "@/db/schema";
+import { gameEntries, runningNotes, timestampedNotes, videoProgress, videoSections } from "@/db/schema";
 import { apiError, requireAuth } from "@/lib/auth-guard";
 import { assertActiveVideo } from "@/lib/drive";
 
@@ -20,8 +20,9 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
         .orderBy(asc(timestampedNotes.timestampSeconds), asc(timestampedNotes.createdAt)),
       db.select().from(runningNotes).where(eq(runningNotes.videoId, id)).limit(1),
       db
-        .select()
+        .select({ section: videoSections, gameEntryId: gameEntries.id })
         .from(videoSections)
+        .leftJoin(gameEntries, eq(gameEntries.sectionId, videoSections.id))
         .where(eq(videoSections.videoId, id))
         .orderBy(asc(videoSections.sortOrder), asc(videoSections.startSeconds)),
     ]);
@@ -34,7 +35,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
       progress: progressRows[0] ?? null,
       notes,
       runningNote: runningRows[0] ?? null,
-      sections,
+      sections: sections.map((row) => ({ ...row.section, gameEntryId: row.gameEntryId })),
     });
   } catch (error) {
     return apiError(error);

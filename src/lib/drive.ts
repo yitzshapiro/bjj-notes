@@ -336,6 +336,41 @@ export async function fetchDriveThumbnail(
   return load(fresh.thumbnailLink);
 }
 
+export type BreadcrumbFolder = { id: string; name: string; isRoot: boolean };
+
+/**
+ * The folders above an item, outermost first, for the study breadcrumb.
+ *
+ * Walks `parent_id` rather than reading the stored `path` array, because the
+ * breadcrumb needs folder ids to link to and `path` only carries names. The
+ * library holds a few dozen folders, so one query and an in-memory walk beats a
+ * recursive CTE for readability.
+ */
+export async function folderTrail(parentId: string | null): Promise<BreadcrumbFolder[]> {
+  if (!parentId) return [];
+
+  const folders = await db
+    .select({ id: driveItems.id, name: driveItems.name, parentId: driveItems.parentId })
+    .from(driveItems)
+    .where(and(eq(driveItems.itemType, "folder"), isNull(driveItems.deletedAt)));
+
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  const trail: BreadcrumbFolder[] = [];
+  const seen = new Set<string>();
+
+  let cursor: string | null = parentId;
+  // `seen` guards against a parent cycle in malformed sync data looping forever.
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor);
+    const folder = byId.get(cursor);
+    if (!folder) break;
+    trail.unshift({ id: folder.id, name: folder.name, isRoot: folder.parentId == null });
+    cursor = folder.parentId;
+  }
+
+  return trail;
+}
+
 export async function assertActiveVideo(videoId: string) {
   const [video] = await db
     .select()
