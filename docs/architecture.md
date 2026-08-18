@@ -23,6 +23,7 @@ No deployment is required. In the intended setup, both the browser and Next.js p
 - Plays the selected video and restores saved progress.
 - Captures timestamped notes at a playback position and free-form running notes.
 - Applies reusable division labels to video sections and exposes starred/current-focus state.
+- Searches every division in the library and filters it by position, phase, and technique.
 - Requests Markdown or JSON exports.
 
 The browser should never receive the Google client secret, Neon connection string, refresh token, or raw database access.
@@ -54,8 +55,25 @@ Neon holds durable app state and a synchronized Drive metadata index. Drizzle mi
 | `running_notes` | One free-form running note document per video. |
 | `division_presets` | Reusable section labels, optional colors, and ordering. |
 | `video_sections` | Per-video labeled time ranges with starred and focused state. |
+| `tags` | The position/phase/technique vocabulary, addressed by a unique slug. |
+| `section_tags` | Which tags apply to which division, with the source and confidence. |
+| `game_plans` | Named routes through the library, addressed by a unique slug. |
+| `plan_stages` | Ordered stages within a plan, each with an intent and optional mat test. |
+| `plan_steps` | The divisions one stage drills, each with a role and sort order. |
 
 App-owned video records reference `drive_items`. Deleting a video record cascades to its progress, notes, and sections; a deleted division preset leaves its video section intact and clears only the preset reference.
+
+A plan step references a division through `section_id`, which is nullable and clears rather than cascades. Each step also stores its own `video_id`, `label`, and `start_seconds`, so re-importing or deleting divisions can never silently delete a plan — a step whose link is broken still resolves a deep link from its own columns. Plans are addressed by slug in the UI; because `id` is a uuid column, a lookup only compares against it when the path segment is actually a uuid.
+
+Plans deliberately store no practice state. Reps stay on `video_sections`, so a plan, the focus board, and the study panel all read and write the same counter.
+
+## Division tagging
+
+Tagging is a projection of data the library already has, not a new source of truth. `src/lib/classify.ts` is a pure function from a division's label and Drive path to a list of `{ slug, confidence }`, which makes the rules unit-testable without a database and keeps the vocabulary in one place for both the seeder and the UI.
+
+Label matches score above folder matches because a folder describes a whole instructional while a label describes one division; agreement between the two scores highest. Rules are conservative by design — an ambiguous division is left untagged, since a missing tag is a gap search can work around and a wrong tag removes a division from the results it belongs in.
+
+`section_tags.source` separates generated rows from hand corrections. Re-running the classifier deletes and rewrites only `auto` rows, so improving the rules never costs manual work. Tag filters in the browser are AND-ed: asking for `open-guard` and `sweep` returns divisions carrying both, which is the only useful default at this library size.
 
 ## Library synchronization and hierarchy
 

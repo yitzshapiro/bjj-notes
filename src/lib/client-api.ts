@@ -84,6 +84,92 @@ export type DivisionPreset = {
   sortOrder?: number;
 };
 
+export type TagKind = "position" | "phase" | "technique";
+
+export type LibraryTag = {
+  id: string;
+  slug: string;
+  kind: TagKind;
+  label: string;
+  sortOrder: number;
+  count: number;
+};
+
+export type DivisionTag = {
+  slug: string;
+  label: string;
+  kind: TagKind;
+  confidence: number;
+  source: "auto" | "manual";
+};
+
+/** A division anywhere in the library, with its tags and practice state. */
+export type BrowsedDivision = StudySection & {
+  videoId: string;
+  video: { id: string; name: string; path: string[] };
+  tags: DivisionTag[];
+};
+
+export type DivisionScopeFilter = "all" | "focus" | "starred" | "practiced" | "untouched";
+
+export type DivisionSearch = {
+  divisions: BrowsedDivision[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type StepRole = "entry" | "control" | "attack" | "recovery" | "concept";
+
+/** One division inside a plan stage, joined to its live practice state. */
+export type PlanStep = {
+  id: string;
+  stageId: string;
+  sectionId: string | null;
+  videoId: string;
+  label: string;
+  startSeconds: number;
+  endSeconds: number | null;
+  role: StepRole;
+  note: string | null;
+  sortOrder: number;
+  video: { id: string; name: string; path: string[] };
+  practiceCount: number;
+  lastPracticedAt: string | null;
+  focused: boolean;
+  starred: boolean;
+};
+
+export type PlanStage = {
+  id: string;
+  planId: string;
+  name: string;
+  intent: string | null;
+  matTest: string | null;
+  timeframe: string | null;
+  sortOrder: number;
+  steps: PlanStep[];
+};
+
+export type GamePlan = {
+  id: string;
+  slug: string;
+  name: string;
+  goal: string | null;
+  sortOrder: number;
+};
+
+export type GamePlanSummary = GamePlan & {
+  stageCount: number;
+  stepCount: number;
+  drilledCount: number;
+  reps: number;
+};
+
+export type PlanTotals = { steps: number; drilled: number; focused: number; reps: number };
+
+export type PlanDetail = { plan: GamePlan; stages: PlanStage[]; totals: PlanTotals };
+
 export type VideoBundle = {
   video: { id: string; name: string; durationSeconds?: number };
   progress: VideoProgress;
@@ -312,6 +398,36 @@ export const api = {
   deleteSection(videoId: string, id: string) {
     void videoId;
     return request<void>(`/api/sections/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+  tags() {
+    return request<{ tags: LibraryTag[] }>("/api/tags").then(({ tags }) => tags);
+  },
+  searchDivisions(options: {
+    q?: string;
+    tags?: string[];
+    scope?: DivisionScopeFilter;
+    limit?: number;
+    offset?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (options.q) params.set("q", options.q);
+    if (options.tags?.length) params.set("tags", options.tags.join(","));
+    if (options.scope && options.scope !== "all") params.set("scope", options.scope);
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.offset) params.set("offset", String(options.offset));
+    return request<DivisionSearch>(`/api/divisions?${params}`);
+  },
+  plans() {
+    return request<{ plans: GamePlanSummary[] }>("/api/plans").then(({ plans }) => plans);
+  },
+  plan(idOrSlug: string) {
+    return request<PlanDetail>(`/api/plans/${encodeURIComponent(idOrSlug)}`);
+  },
+  focusStage(planIdOrSlug: string, stageId: string, focused: boolean) {
+    return request<{ updated: number; focused: boolean }>(
+      `/api/plans/${encodeURIComponent(planIdOrSlug)}/focus`,
+      { method: "PUT", body: JSON.stringify({ stageId, focused }) },
+    );
   },
   presets() {
     return request<{ presets: DivisionPreset[] }>("/api/presets").then(({ presets }) => presets);

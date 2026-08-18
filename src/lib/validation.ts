@@ -74,6 +74,37 @@ export const sectionUpdateInput = z
 
 export const sectionScope = z.enum(["all", "focus", "practiced", "starred"]).catch("all");
 
+/** Query parameters for the global division browser. */
+export const divisionQuery = z
+  .object({
+    q: z.string().trim().max(200).optional(),
+    /** Comma-separated tag slugs; a division must carry all of them. */
+    tags: z.string().trim().max(500).optional(),
+    scope: z.enum(["all", "focus", "starred", "practiced", "untouched"]).catch("all").optional(),
+    limit: z.coerce.number().int().min(1).max(200).catch(60).optional().default(60),
+    offset: z.coerce.number().int().min(0).catch(0).optional().default(0),
+  })
+  .strict();
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Postgres raises `invalid input syntax for type uuid` when a non-UUID string is
+ * compared against a uuid column, so a slug lookup must not also probe the
+ * primary key. Guard the id comparison with this instead.
+ */
+export function isUuid(value: string) {
+  return UUID_PATTERN.test(value);
+}
+
+/** Moves every division in one plan stage into or out of this week's focus. */
+export const stageFocusInput = z
+  .object({
+    stageId: z.uuid(),
+    focused: z.boolean(),
+  })
+  .strict();
+
 export function parseJson<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {

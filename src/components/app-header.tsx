@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, LogOut, Menu, Target, X } from "lucide-react";
+import { BookOpen, LogOut, Map, Menu, Search, Target, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -14,6 +14,8 @@ type AppHeaderProps = {
 
 const navItems = [
   { href: "/library", label: "Library", icon: BookOpen },
+  { href: "/divisions", label: "Divisions", icon: Search },
+  { href: "/plans", label: "Plans", icon: Map },
   { href: "/focus", label: "Focus", icon: Target },
 ];
 

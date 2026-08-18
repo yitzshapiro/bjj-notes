@@ -10,6 +10,8 @@ The app is intended to run locally. It does not need to be deployed or made avai
 - Requests Google Drive read-only access.
 - Mirrors the exact folder and video names beneath one configured parent folder.
 - Saves playback position, completion state, timestamped notes, running notes, division presets, and starred/focused video sections in Neon.
+- Tags every division by position, phase, and technique, and makes the whole library searchable.
+- Groups divisions into **game plans**: ordered stages that form a route through the library toward one skill.
 - Exports timestamped notes, running notes, or both as Markdown or JSON.
 - Supports desktop and mobile layouts.
 
@@ -75,8 +77,10 @@ Neon stores:
 - the Drive metadata needed to rebuild the library tree;
 - current playback position and completion status;
 - timestamped and running notes;
-- reusable division presets; and
-- video sections, including starred and current-focus state.
+- reusable division presets;
+- video sections, including starred and current-focus state;
+- the tag vocabulary and which tags apply to which division; and
+- game plans, their stages, and the divisions each stage drills.
 
 Video bytes remain in Google Drive and are not copied into Postgres.
 
@@ -105,6 +109,80 @@ Copy only the value after `/folders/` into `DRIVE_ROOT_FOLDER_ID`. The signed-in
 
 Only descendants of this root are shown. Folder and video names are kept verbatim, and the tree uses the same nesting as Drive. Non-video files are ignored.
 
+## Division tags
+
+Every division is filed under three kinds of tag — a **position** (closed guard,
+half guard, leg entanglement…), a **phase** of the exchange (entry, sweep,
+submission, escape, retention…), and where relevant a named **technique**
+(triangle, kimura, heel hook…). The `/divisions` page searches across all of
+them, so a technique can be found without remembering which volume it was in.
+
+Tags are assigned by the rules in [`src/lib/classify.ts`](src/lib/classify.ts),
+which reads two signals with different weights:
+
+| Signal | Confidence | Why |
+| --- | --- | --- |
+| The division label | 0.9 | Specific to that one division. |
+| The Drive folder it sits under | 0.6 | Tells you the subject of the whole instructional, but is broad. |
+| Both agree | 0.95 | Treated as near-certain. |
+
+Anything below `0.7` renders as a dashed chip — a reasonable inference from the
+instructional rather than something read off the label. The rules are
+deliberately conservative: an ambiguous division is left untagged, because a
+missing tag is a gap you can still search around while a wrong tag hides a
+division for good.
+
+Run the classifier after syncing or importing divisions:
+
+```bash
+pnpm tag:divisions
+```
+
+That prints coverage and per-tag counts without writing. Add `--apply` to save:
+
+```bash
+pnpm tag:divisions --apply
+```
+
+A re-run replaces only the rows the classifier owns (`source = 'auto'`), so tags
+corrected by hand are never overwritten. Editing the rules in `classify.ts` and
+re-running is the intended way to improve coverage; `pnpm test` covers the rules
+that are easy to get subtly wrong.
+
+## Game plans
+
+A game plan is a named route through the library: ordered stages, each holding
+divisions that already exist in `video_sections`. Stages carry an intent and an
+optional mat test; each division is tagged with a role (`entry`, `control`,
+`attack`, `recovery`, or `concept`) so theory is visibly separate from what you
+drill.
+
+Plans do not store reps of their own. A step points at the division it drills, so
+`video_sections.practice_count` remains the single record of what was trained and
+the focus board stays in sync — marking a step practiced on a plan is the same
+write as marking it practiced anywhere else.
+
+One plan ships with the app. **Pull Guard → Offensive Round** is seven stages and
+49 divisions drawn from Danaher's *Feet to Floor* Vol. 3, *New Wave Open Guard*
+Vol. 1–2, *Enter the System: Triangles*, and *Go Further Faster: Guard
+Retention*. Seed it after the library has been synced:
+
+```bash
+pnpm seed:guard-path
+```
+
+That prints the plan without writing. Add `--apply` to save it, then open
+`/plans/guard-pull-offense`:
+
+```bash
+pnpm seed:guard-path --apply
+```
+
+The seeder resolves every step against an existing division by video name and
+start time. If a division is missing or ambiguous it fails with the list of
+unresolved steps rather than writing a partial plan, and re-running replaces the
+plan without touching practice counts.
+
 ## Exports
 
 Each video's notes can be exported in either format:
@@ -125,6 +203,8 @@ For either format, choose a combined export or export only timestamped notes or 
 | `pnpm build` | Create a production build as a verification step; deployment is optional and not required. |
 | `pnpm db:generate` | Generate a migration after an intentional schema change. |
 | `pnpm db:migrate` | Apply checked-in migrations to `DATABASE_URL`. |
+| `pnpm tag:divisions` | Preview the division tagging; add `--apply` to write it. |
+| `pnpm seed:guard-path` | Preview the built-in guard-pull game plan; add `--apply` to write it. |
 
 ## Privacy and security
 

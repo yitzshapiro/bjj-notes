@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -122,9 +123,124 @@ export const videoSections = pgTable(
   ],
 );
 
+/**
+ * The vocabulary a division can be filed under: a position, a phase of the
+ * exchange, or a named technique. Seeded from `src/lib/classify.ts`.
+ */
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    kind: text("kind", { enum: ["position", "phase", "technique"] }).notNull(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("tags_slug_unique").on(table.slug), index("tags_kind_idx").on(table.kind)],
+);
+
+/**
+ * Which tags apply to which division. `source` separates the classifier's work
+ * from anything corrected by hand, so a re-run can replace its own rows without
+ * discarding manual edits; `confidence` marks the auto rows worth reviewing.
+ */
+export const sectionTags = pgTable(
+  "section_tags",
+  {
+    sectionId: uuid("section_id")
+      .notNull()
+      .references(() => videoSections.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+    source: text("source", { enum: ["auto", "manual"] }).notNull().default("auto"),
+    confidence: real("confidence").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sectionId, table.tagId] }),
+    index("section_tags_tag_idx").on(table.tagId),
+    index("section_tags_source_idx").on(table.source),
+  ],
+);
+
+/**
+ * A named route through the library: ordered stages of divisions that build one
+ * skill. Reps are not stored here — a step points at the division it drills, so
+ * `video_sections.practice_count` stays the single record of what was trained.
+ */
+export const gamePlans = pgTable(
+  "game_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    goal: text("goal"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("game_plans_slug_unique").on(table.slug)],
+);
+
+export const planStages = pgTable(
+  "plan_stages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => gamePlans.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    intent: text("intent"),
+    matTest: text("mat_test"),
+    timeframe: text("timeframe"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("plan_stages_plan_order_idx").on(table.planId, table.sortOrder)],
+);
+
+export const planSteps = pgTable(
+  "plan_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stageId: uuid("stage_id")
+      .notNull()
+      .references(() => planStages.id, { onDelete: "cascade" }),
+    // The division this step drills. Kept nullable so re-importing divisions can
+    // never silently delete a plan; the denormalized fields below still resolve
+    // a deep link when the link is broken.
+    sectionId: uuid("section_id").references(() => videoSections.id, { onDelete: "set null" }),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => driveItems.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    startSeconds: real("start_seconds").notNull(),
+    role: text("role", { enum: ["entry", "control", "attack", "recovery", "concept"] })
+      .notNull()
+      .default("attack"),
+    note: text("note"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("plan_steps_stage_order_idx").on(table.stageId, table.sortOrder),
+    index("plan_steps_section_idx").on(table.sectionId),
+  ],
+);
+
 export type DriveItem = typeof driveItems.$inferSelect;
 export type VideoProgress = typeof videoProgress.$inferSelect;
 export type TimestampedNote = typeof timestampedNotes.$inferSelect;
 export type RunningNote = typeof runningNotes.$inferSelect;
 export type DivisionPreset = typeof divisionPresets.$inferSelect;
 export type VideoSection = typeof videoSections.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
+export type SectionTag = typeof sectionTags.$inferSelect;
+export type GamePlan = typeof gamePlans.$inferSelect;
+export type PlanStage = typeof planStages.$inferSelect;
+export type PlanStep = typeof planSteps.$inferSelect;
