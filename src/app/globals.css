@@ -331,6 +331,27 @@ button.time-chip:hover { color: var(--foreground); }
 .focus-section__head h2 { margin: 0; font-size: 16px; }
 .focus-section__head p { margin: 4px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
 
+/* History ----------------------------------------------------------------- */
+.history-filters { margin-top: 20px; }
+.history-group { margin-top: 26px; }
+.history-group__head { margin-bottom: 10px; display: flex; align-items: baseline; gap: 10px; }
+.history-group__head h2 { margin: 0; font-size: 14px; }
+
+.history-list { display: flex; flex-direction: column; gap: 6px; }
+.history-row { padding: 8px; display: grid; grid-template-columns: 128px minmax(0, 1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); transition: border-color .14s ease, background .14s ease; }
+.history-row:hover { border-color: var(--border-strong); background: var(--accent); }
+.history-row .thumb { width: 128px; }
+.history-row__body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.history-row__body strong { font-size: 13px; font-weight: 650; }
+.history-row__body > small { color: var(--muted-foreground); font-size: 11px; }
+.history-row__meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted-foreground); font-size: 11px; font-weight: 600; }
+.history-row__meta span { display: inline-flex; align-items: center; gap: 4px; }
+.history-row__progress { margin-top: 7px; display: flex; align-items: center; gap: 9px; }
+.history-row__progress .progress { flex: 1; max-width: 260px; }
+.history-row__progress small { color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.history-row__action { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 999px; color: var(--muted-foreground); background: var(--muted); }
+.history-row:hover .history-row__action { color: var(--primary-foreground); background: var(--primary); }
+
 /* My Game ----------------------------------------------------------------- */
 .icon-button.is-in-game { color: var(--foreground); background: var(--accent); }
 
@@ -590,6 +611,10 @@ kbd {
   .video-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .focus-stats { grid-template-columns: 1fr; }
   .focus-main { padding: 24px 14px 60px; }
+  .history-row { grid-template-columns: 104px minmax(0, 1fr); }
+  .history-row .thumb { width: 104px; }
+  .history-row__action { display: none; }
+  .history-row__progress .progress { max-width: none; }
   .player-bar { padding: 0 14px; flex-wrap: wrap; }
   .browse-toolbar { flex-wrap: wrap; }
   .browse-row { grid-template-columns: minmax(0, 1fr); }

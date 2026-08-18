@@ -14,6 +14,7 @@ The app is intended to run locally. It does not need to be deployed or made avai
 - Groups divisions into **game plans**: ordered stages that form a route through the library toward one skill.
 - Tracks **My Game** — the techniques you are trying to land, and every dated occasion they worked.
 - Plays video with study-oriented keyboard shortcuts and a persistent speed control.
+- Keeps a watch history of the last year, grouped by when you watched.
 - Exports timestamped notes, running notes, or both as Markdown or JSON.
 - Supports desktop and mobile layouts.
 
@@ -132,6 +133,23 @@ Shortcuts are ignored while the cursor is in a note field or a dialog is open, s
 typing a comma in a running note never changes playback speed. The arrow keys
 replace the browser's own 5-second seek so the step is a predictable 10 seconds
 wherever focus happens to be.
+
+## History
+
+`/history` lists every video opened in the last year, most recent first and
+grouped under **Today**, **Yesterday**, **Earlier this week**, **Earlier this
+month**, and then by month. Each row resumes where playback stopped, and shows
+how much is left, how many divisions the video has, and how many notes you took
+on it. Filters narrow the list to in-progress, completed, or starred.
+
+The one-year limit applies to the **listing only**. Progress older than a year
+stays in `video_progress`, so an old resume position is never lost by opening
+this page — it simply is not shown.
+
+Grouping is by local calendar day rather than elapsed hours, so something watched
+at 23:50 reads as "Yesterday" at 00:10 rather than "Today", and recency takes
+priority over the calendar: a video watched four days ago stays under "Earlier
+this week" even when those four days crossed into a new month.
 
 ## My Game
 

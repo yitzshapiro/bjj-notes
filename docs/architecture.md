@@ -21,6 +21,7 @@ No deployment is required. In the intended setup, both the browser and Next.js p
 
 - Shows the Drive folder tree without changing its names or nesting.
 - Plays the selected video and restores saved progress.
+- Lists the last year of watch history, grouped by when each video was watched.
 - Applies playback-speed and skip shortcuts, keeping the chosen speed across videos.
 - Captures timestamped notes at a playback position and free-form running notes.
 - Applies reusable division labels to video sections and exposes starred/current-focus state.
@@ -70,6 +71,14 @@ App-owned video records reference `drive_items`. Deleting a video record cascade
 A plan step references a division through `section_id`, which is nullable and clears rather than cascades. Each step also stores its own `video_id`, `label`, and `start_seconds`, so re-importing or deleting divisions can never silently delete a plan — a step whose link is broken still resolves a deep link from its own columns. Plans are addressed by slug in the UI; because `id` is a uuid column, a lookup only compares against it when the path segment is actually a uuid.
 
 Plans deliberately store no practice state. Reps stay on `video_sections`, so a plan, the focus board, and the study panel all read and write the same counter.
+
+## Watch history
+
+History is a read-only projection of `video_progress`; it introduces no tables of its own. The one-year cutoff is applied as a `WHERE` clause on `last_watched_at` and never as a delete, so the listing shrinks while resume positions are preserved indefinitely.
+
+Bucketing lives in `src/lib/history.ts` as pure functions over `Date`, because the failure modes are all boundary conditions: a watch ten minutes before midnight belongs to yesterday rather than to a rolling 24-hour window, a watch four days ago belongs to "Earlier this week" even when the week crossed a month boundary, and a month label needs its year only once it leaves the current one. Those cases are covered by unit tests rather than checked by eye.
+
+`groupHistory` preserves the order it receives rather than sorting, so the SQL `ORDER BY last_watched_at DESC` remains the single definition of ordering.
 
 ## Playback controls
 

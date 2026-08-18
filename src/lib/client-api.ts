@@ -84,6 +84,30 @@ export type DivisionPreset = {
   sortOrder?: number;
 };
 
+/** One video you have watched, as listed in the history view. */
+export type HistoryEntry = {
+  videoId: string;
+  name: string;
+  path: string[];
+  positionSeconds: number;
+  durationSeconds: number | null;
+  completed: boolean;
+  starred: boolean;
+  lastWatchedAt: string;
+  progress: number;
+  noteCount: number;
+  divisionCount: number;
+};
+
+export type HistoryScope = "all" | "in-progress" | "completed" | "starred";
+
+export type HistoryPayload = {
+  cutoff: string;
+  maxAgeDays: number;
+  totals: { watched: number; completed: number; seconds: number };
+  entries: HistoryEntry[];
+};
+
 export type HitContext = "drilling" | "positional" | "live" | "competition";
 
 export type GameHit = {
@@ -430,6 +454,11 @@ export const api = {
   },
   tags() {
     return request<{ tags: LibraryTag[] }>("/api/tags").then(({ tags }) => tags);
+  },
+  history(scope: HistoryScope = "all") {
+    const params = new URLSearchParams();
+    if (scope !== "all") params.set("scope", scope);
+    return request<HistoryPayload>(`/api/history?${params}`);
   },
   game() {
     return request<{ entries: GameEntry[] }>("/api/game").then(({ entries }) => entries);

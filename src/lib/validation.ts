@@ -74,6 +74,14 @@ export const sectionUpdateInput = z
 
 export const sectionScope = z.enum(["all", "focus", "practiced", "starred"]).catch("all");
 
+/** Query parameters for the watch history listing. */
+export const historyQuery = z
+  .object({
+    scope: z.enum(["all", "in-progress", "completed", "starred"]).catch("all").optional(),
+    limit: z.coerce.number().int().min(1).max(500).catch(200).optional().default(200),
+  })
+  .strict();
+
 export const gameEntryCreateInput = z
   .object({
     sectionId: z.uuid(),
