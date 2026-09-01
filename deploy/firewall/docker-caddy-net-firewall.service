@@ -1,0 +1,16 @@
+[Unit]
+Description=Ensure Docker bridge firewall rules for caddy_net
+Documentation=https://github.com/yitzshapiro/bjj-notes
+# PartOf makes this re-run whenever docker restarts, not only at boot, because
+# a docker restart rebuilds its chains and drops these rules again.
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/docker-caddy-net-firewall.sh
+
+[Install]
+WantedBy=multi-user.target
