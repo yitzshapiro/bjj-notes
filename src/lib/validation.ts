@@ -129,6 +129,27 @@ export const stageFocusInput = z
   })
   .strict();
 
+/**
+ * A batch of uploaded caption files. `videoId` is set only on the second pass,
+ * once a human has resolved a name the matcher refused to guess at.
+ */
+export const captionUploadInput = z
+  .object({
+    files: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().min(1).max(500),
+            content: z.string().min(1).max(5_000_000),
+            videoId: z.string().trim().min(1).max(200).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(50),
+  })
+  .strict();
+
 export function parseJson<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {

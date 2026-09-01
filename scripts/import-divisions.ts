@@ -47,6 +47,19 @@ const INSTRUCTIONAL_FOLDERS: Record<string, string> = {
   "Pillars of Defense — Upper Body Joint Lock Escapes":
     "Gordon Ryan - Pillars of Defense Upper Body Joint Lock Escapes (720p aac)",
   "Getting Swole as a Grappler": "Getting Swole as A Grappler by Gordon Ryan",
+  "Master The Move — The Back Crucifix": "Master The Move - The Back Crucifix",
+  "Ageless Jiu Jitsu — Bottom Game No-Gi":
+    "Ageless Jiu Jitsu: Bottom Game NoGi By John Danaher 1080p",
+  "Ageless Jiu Jitsu — Top Game No-Gi":
+    "Ageless Jiu Jitsu: Top Game NoGi By John Danaher 720p",
+  "Ageless Jiu Jitsu — Bottom Game Gi":
+    "Ageless Jiu Jitsu: Bottom Game Gi By John Danaher 720p",
+  "Ageless Jiu Jitsu — Top Game Gi":
+    "Ageless Jiu Jitsu: Top Game Gi By John Danaher 1080p",
+  "The Fastest Way — To Increase Your Submission Percentage (No-Gi)":
+    "The Fastest Way To Increase Your Submission Percentage No Gi by John Danaher",
+  "The Fastest Way — To Becoming Effective in the Standing Position":
+    "John Danaher - Fastest Way To Becoming Effective In Standing Position [8] NoGi (720p)",
 };
 
 const SELF_MASTERY = "Self Mastery — Solo BJJ Training Drills";
@@ -148,6 +161,7 @@ export function parseDivisionFile(source: string): VolumeDivisions[] {
       trimmed.startsWith("Timestamp\t") ||
       trimmed.startsWith("—\t") ||
       trimmed.startsWith("BJJ Fanatics") ||
+      trimmed.startsWith("Eight volumes.") ||
       trimmed.startsWith("This is ") ||
       trimmed.startsWith("That covers ")
     ) {
@@ -211,7 +225,12 @@ export function parseDivisionFile(source: string): VolumeDivisions[] {
 function volumeNumber(name: string) {
   const match = name.match(/\b(?:vol(?:ume)?|part)[\s._-]*(\d+)\b/i);
   if (match) return Number(match[1]);
-  const trailing = name.match(/(?:Ryan)?(\d+)(?:\s+\([^)]*\))?\.(?:mp4|mkv)$/i);
+
+  const withoutExtensions = name.replace(/(?:\.(?:mp4|mkv))+$/gi, "");
+  const leading = withoutExtensions.match(/^(\d+)\b/);
+  if (leading) return Number(leading[1]);
+
+  const trailing = withoutExtensions.match(/(\d+)(?:\s+\([^)]*\))?$/);
   return trailing ? Number(trailing[1]) : null;
 }
 

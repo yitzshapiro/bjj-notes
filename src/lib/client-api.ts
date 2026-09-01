@@ -231,6 +231,7 @@ export type VideoBundle = {
   notes: TimestampNote[];
   runningNote: { body: string; updatedAt?: string };
   sections: StudySection[];
+  hasCaptions?: boolean;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -367,7 +368,39 @@ export function normalizeLibrary(input: unknown): LibraryPayload {
   };
 }
 
+export type CaptionCandidate = { id: string; name: string; path: string[] };
+
+export type CaptionResult =
+  | {
+      status: "saved";
+      name: string;
+      videoId: string;
+      videoName: string;
+      videoPath: string[];
+      cueCount: number;
+      confidence?: "exact" | "fuzzy" | "duration";
+    }
+  | { status: "ambiguous" | "unmatched"; name: string; cueCount: number; candidates: CaptionCandidate[] }
+  | { status: "invalid"; name: string; reason: string };
+
+export type CaptionCoverage = {
+  total: number;
+  withCaptions: number;
+  videos: { id: string; name: string; path: string[]; cueCount: number | null; updatedAt: string | null }[];
+};
+
+export type CaptionUploadFile = { name: string; content: string; videoId?: string };
+
 export const api = {
+  captionCoverage() {
+    return request<CaptionCoverage>("/api/captions");
+  },
+  uploadCaptions(files: CaptionUploadFile[]) {
+    return request<{ results: CaptionResult[] }>("/api/captions", {
+      method: "POST",
+      body: JSON.stringify({ files }),
+    }).then(({ results }) => results);
+  },
   async library() {
     return normalizeLibrary(await request<unknown>("/api/library"));
   },

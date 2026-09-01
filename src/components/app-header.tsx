@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, History, LogOut, Map, Menu, Search, Swords, Target, X } from "lucide-react";
+import { BookOpen, Captions, History, LogOut, Map, Menu, Search, Swords, Target, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -19,6 +19,7 @@ const navItems = [
   { href: "/game", label: "My Game", icon: Swords },
   { href: "/focus", label: "Focus", icon: Target },
   { href: "/history", label: "History", icon: History },
+  { href: "/captions", label: "Captions", icon: Captions },
 ];
 
 export function AppHeader({ compact = false, title, trailing }: AppHeaderProps) {

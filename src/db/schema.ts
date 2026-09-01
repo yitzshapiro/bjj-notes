@@ -283,6 +283,29 @@ export const planSteps = pgTable(
   ],
 );
 
+/**
+ * One caption track per video, uploaded as a WebVTT file.
+ *
+ * Drive auto-generates these for uploaded video, but exposes them only through
+ * the "Manage caption tracks" UI — there is no API for them, so the `.vtt`
+ * files are downloaded by hand and matched to videos on `/captions`.
+ */
+export const videoCaptions = pgTable("video_captions", {
+  videoId: text("video_id")
+    .primaryKey()
+    .references(() => driveItems.id, { onDelete: "cascade" }),
+  language: text("language").notNull().default("en"),
+  label: text("label").notNull().default("English"),
+  // The name of the uploaded file, kept so a re-upload can be recognised as the
+  // same track and so an unexpected match can be traced back to its source.
+  fileName: text("file_name"),
+  content: text("content").notNull(),
+  cueCount: integer("cue_count").notNull().default(0),
+  lastCueEndSeconds: real("last_cue_end_seconds"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type DriveItem = typeof driveItems.$inferSelect;
 export type VideoProgress = typeof videoProgress.$inferSelect;
 export type TimestampedNote = typeof timestampedNotes.$inferSelect;
@@ -296,3 +319,4 @@ export type GameHit = typeof gameHits.$inferSelect;
 export type GamePlan = typeof gamePlans.$inferSelect;
 export type PlanStage = typeof planStages.$inferSelect;
 export type PlanStep = typeof planSteps.$inferSelect;
+export type VideoCaption = typeof videoCaptions.$inferSelect;

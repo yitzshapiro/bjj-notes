@@ -314,6 +314,7 @@ export function StudyClient({
   const [runningSaveState, setRunningSaveState] = useState<SaveState>("idle");
   const [mediaBusy, setMediaBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [hasCaptions, setHasCaptions] = useState(false);
   const [rate, setRate] = useState(DEFAULT_RATE);
   const [rateMenuOpen, setRateMenuOpen] = useState(false);
   const [cue, setCue] = useState<{ id: number; icon: "faster" | "slower" | "back" | "forward"; text: string } | null>(
@@ -356,6 +357,7 @@ export function StudyClient({
         setRunningNote(bundle.runningNote?.body ?? "");
         setSections(Array.isArray(bundle.sections) ? bundle.sections : []);
         setPresets(Array.isArray(presetItems) ? presetItems : []);
+        setHasCaptions(Boolean(bundle.hasCaptions));
       } catch (caught) {
         if (cancelled) return;
         if (caught instanceof ApiError && caught.status === 401) router.replace("/");
@@ -738,6 +740,15 @@ export function StudyClient({
                 })
               }
             >
+              {hasCaptions ? (
+                <track
+                  default
+                  kind="captions"
+                  label="English"
+                  srcLang="en"
+                  src={`/api/videos/${encodeURIComponent(videoId)}/captions`}
+                />
+              ) : null}
               Your browser does not support HTML video.
             </video>
             {mediaBusy ? (

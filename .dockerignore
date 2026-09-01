@@ -1,0 +1,25 @@
+.git
+.github
+.gitignore
+node_modules
+.next
+.pnpm-store
+coverage
+*.tsbuildinfo
+.DS_Store
+
+# Secrets are injected at runtime via compose env_file, never baked into a layer.
+.env
+.env.local
+
+# Dev-only tooling that the production image never runs.
+drizzle
+scripts
+drizzle.config.ts
+**/*.test.ts
+vitest.config.ts
+
+Dockerfile
+.dockerignore
+compose.yaml
+README.md

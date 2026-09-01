@@ -2,7 +2,14 @@ import { asc, eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/db";
-import { gameEntries, runningNotes, timestampedNotes, videoProgress, videoSections } from "@/db/schema";
+import {
+  gameEntries,
+  runningNotes,
+  timestampedNotes,
+  videoCaptions,
+  videoProgress,
+  videoSections,
+} from "@/db/schema";
 import { apiError, requireAuth } from "@/lib/auth-guard";
 import { assertActiveVideo } from "@/lib/drive";
 
@@ -11,7 +18,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
     await requireAuth();
     const { id } = await context.params;
     const video = await assertActiveVideo(id);
-    const [progressRows, notes, runningRows, sections] = await Promise.all([
+    const [progressRows, notes, runningRows, sections, captionRows] = await Promise.all([
       db.select().from(videoProgress).where(eq(videoProgress.videoId, id)).limit(1),
       db
         .select()
@@ -25,6 +32,11 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
         .leftJoin(gameEntries, eq(gameEntries.sectionId, videoSections.id))
         .where(eq(videoSections.videoId, id))
         .orderBy(asc(videoSections.sortOrder), asc(videoSections.startSeconds)),
+      db
+        .select({ cueCount: videoCaptions.cueCount })
+        .from(videoCaptions)
+        .where(eq(videoCaptions.videoId, id))
+        .limit(1),
     ]);
 
     return NextResponse.json({
@@ -36,6 +48,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
       notes,
       runningNote: runningRows[0] ?? null,
       sections: sections.map((row) => ({ ...row.section, gameEntryId: row.gameEntryId })),
+      hasCaptions: captionRows.length > 0,
     });
   } catch (error) {
     return apiError(error);
