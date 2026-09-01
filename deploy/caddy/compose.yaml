@@ -1,0 +1,34 @@
+# Caddy, promoted out of the n8n stack so the reverse proxy no longer shares a
+# lifecycle with an application. Deployed to /opt/caddy on the VPS.
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy_net
+
+volumes:
+  # Reused from the retired n8n stack so the existing TLS certificates survive
+  # the move. Without this Caddy re-issues every cert against Let's Encrypt.
+  caddy_data:
+    external: true
+    name: n8n_caddy_data
+  caddy_config:
+    external: true
+    name: n8n_caddy_config
+
+networks:
+  # Created once by hand (docker network create caddy_net) so it belongs to no
+  # single compose project and cannot be torn down with one.
+  caddy_net:
+    external: true
+    name: caddy_net

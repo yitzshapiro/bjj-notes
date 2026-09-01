@@ -19,5 +19,6 @@ services:
 networks:
   caddy:
     external: true
-    # Created by the n8n compose stack in /opt/n8n; caddy is already attached.
-    name: n8n_default
+    # Shared, project-independent network created by hand. Caddy joins it from
+    # /opt/caddy, so neither stack can remove the other's networking.
+    name: caddy_net
