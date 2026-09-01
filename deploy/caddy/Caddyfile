@@ -2,13 +2,13 @@
 # Caddy streams proxied responses without buffering, so Range requests for the
 # video endpoint pass through intact and seeking stays responsive.
 
-bjj.yourdomain.com {
+bjj-notes.yitzshapiro.com {
 	reverse_proxy bjj-notes:3000
 }
 
 # n8n is stopped, but its data volume is retained. To bring it back: attach the
 # n8n service to the caddy_net network, start it, then uncomment this block and
 # reload. The hostname below only resolves once n8n shares that network.
-# n8n.yourdomain.com {
+# n8n.yitzshapiro.com {
 # 	reverse_proxy n8n:5678
 # }

@@ -7,7 +7,10 @@ RUN npm install -g pnpm@10.12.1
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Next's standalone tracer cannot follow pnpm's symlinked .pnpm layout and drops
+# transitive deps such as @swc/helpers, which crashes the runtime image on boot.
+# A hoisted (flat) node_modules is the layout the tracer expects.
+RUN printf 'node-linker=hoisted\n' > .npmrc && pnpm install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
