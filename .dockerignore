@@ -13,8 +13,12 @@ coverage
 .env.local
 
 # Dev-only tooling that the production image never runs.
+#
+# `scripts` is deliberately NOT excluded: src/lib/caption-search.ts imports
+# scripts/lib/subtitle-terminology, which in turn loads its .json glossary, so
+# the build needs both in context. Only .next/standalone is copied into the
+# runtime image, so nothing here reaches the final layer regardless.
 drizzle
-scripts
 drizzle.config.ts
 **/*.test.ts
 vitest.config.ts
