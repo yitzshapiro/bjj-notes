@@ -1,15 +1,16 @@
 import { eq, isNull, and } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { db } from "@/db";
+import { db, sql } from "@/db";
 import { driveItems, videoCaptions } from "@/db/schema";
 import { apiError, requireAuth } from "@/lib/auth-guard";
 import {
   CaptionFormatError,
   matchCaptionFile,
-  parseVtt,
   type CaptionCandidate,
 } from "@/lib/captions";
+import { prepareCaptions } from "@/lib/caption-cues";
+import { saveCaptionTrack } from "@/lib/caption-store";
 import { captionUploadInput, parseJson } from "@/lib/validation";
 
 /** Coverage summary: what has a caption track and what is still missing. */
@@ -47,7 +48,7 @@ export async function GET() {
 }
 
 /**
- * Accepts a batch of `.vtt` files and stores each one against its video.
+ * Accepts `.srt` or `.vtt` files and stores each one against its video.
  *
  * A file whose name points at exactly one video is saved immediately. Anything
  * ambiguous or unrecognised is returned untouched, with candidates, for the
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
     for (const file of input.files) {
       let parsed;
       try {
-        parsed = parseVtt(file.content);
+        parsed = prepareCaptions(file.content);
       } catch (error) {
         results.push({
           name: file.name,
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
           results.push({ name: file.name, reason: "That video is no longer in the library", status: "invalid" as const });
           continue;
         }
-        await save(file.videoId, file.name, file.content, parsed);
+        await saveCaptionTrack(sql, { videoId: file.videoId, fileName: file.name, content: parsed.content });
         results.push({
           cueCount: parsed.cueCount,
           name: file.name,
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
 
       const match = matchCaptionFile(file.name, videos, parsed.lastCueEndSeconds);
       if (match.status === "matched") {
-        await save(match.videoId, file.name, file.content, parsed);
+        await saveCaptionTrack(sql, { videoId: match.videoId, fileName: file.name, content: parsed.content });
         const video = byId.get(match.videoId);
         results.push({
           confidence: match.confidence,
@@ -140,31 +141,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return apiError(error);
   }
-}
-
-async function save(
-  videoId: string,
-  fileName: string,
-  content: string,
-  parsed: { cueCount: number; lastCueEndSeconds: number | null },
-) {
-  await db
-    .insert(videoCaptions)
-    .values({
-      content,
-      cueCount: parsed.cueCount,
-      fileName,
-      lastCueEndSeconds: parsed.lastCueEndSeconds,
-      videoId,
-    })
-    .onConflictDoUpdate({
-      target: videoCaptions.videoId,
-      set: {
-        content,
-        cueCount: parsed.cueCount,
-        fileName,
-        lastCueEndSeconds: parsed.lastCueEndSeconds,
-        updatedAt: new Date(),
-      },
-    });
 }

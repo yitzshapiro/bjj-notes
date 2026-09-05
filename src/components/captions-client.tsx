@@ -77,7 +77,7 @@ export function CaptionsClient() {
       if (!fileList?.length) return;
       const files = Array.from(fileList).filter((file) => /\.(vtt|srt)$/i.test(file.name));
       if (!files.length) {
-        setError("Those files aren't caption tracks — drop the .vtt files Drive gave you.");
+        setError("Choose subtitle files in .srt or .vtt format.");
         return;
       }
 
@@ -155,10 +155,10 @@ export function CaptionsClient() {
         >
           <Upload size={28} aria-hidden="true" />
           <p>
-            <strong>Drop your .vtt files here</strong>
+            <strong>Drop your .srt or .vtt files here</strong>
           </p>
           <p className="captions-drop__hint">
-            Drop all of them at once — each one is matched to its video by filename.
+            Each track is matched to its video, prepared for playback, and added to transcript search.
           </p>
           <input
             ref={inputRef}

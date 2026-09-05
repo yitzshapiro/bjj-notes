@@ -16,7 +16,7 @@ import {
   Target,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   ApiError,
@@ -30,6 +30,7 @@ import { formatDate, formatFocusAge, formatPercent } from "@/lib/format";
 import { AppHeader } from "./app-header";
 import { DivisionRow, studyHref } from "./division-row";
 import { ErrorState, LoadingState, ProgressBar, Thumbnail } from "./ui";
+import { TranscriptSearch } from "./transcript-search";
 
 type Filter = "all" | VideoStatus | "starred";
 
@@ -155,11 +156,13 @@ export function LibraryClient() {
   const searchParams = useSearchParams();
   // `?folder=` lets the study breadcrumb link straight to a folder.
   const requestedFolderId = searchParams.get("folder");
+  const searchRequested = searchParams.get("search") === "1";
   const [library, setLibrary] = useState<LibraryPayload | null>(null);
   const [divisions, setDivisions] = useState<LibraryDivision[]>([]);
   const [activeFolderId, setActiveFolderId] = useState(requestedFolderId ?? "root");
   const [filter, setFilter] = useState<Filter>("all");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
+  const searchInput = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +192,22 @@ export function LibraryClient() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!loading && searchRequested) searchInput.current?.focus();
+  }, [loading, searchRequested]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      const saved = params.get("q") ?? "";
+      if (saved === query.trim()) return;
+      if (query.trim()) params.set("q", query.trim());
+      else params.delete("q");
+      router.replace(params.size ? `/library?${params}` : "/library", { scroll: false });
+    }, 275);
+    return () => clearTimeout(timer);
+  }, [query, router, searchParams]);
 
   const sync = async () => {
     setSyncing(true);
@@ -226,7 +245,7 @@ export function LibraryClient() {
   const matchesQuery = (name: string) => name.toLocaleLowerCase().includes(normalizedQuery);
 
   // Starred is a library-wide view: what is starred matters more than where it sits.
-  const starredView = filter === "starred";
+  const starredView = !searching && filter === "starred";
   const starredVideos = allNodes.filter(
     (node) => node.kind === "video" && node.starred && matchesQuery(node.name),
   );
@@ -239,7 +258,7 @@ export function LibraryClient() {
   const videos = (searching ? allNodes : (activeFolder?.children ?? []))
     .filter((node) => node.kind === "video")
     .filter((node) => matchesQuery(node.name))
-    .filter((node) => matchesFilter(node, filter));
+    .filter((node) => searching || matchesFilter(node, filter));
   const childFolders =
     searching || starredView
       ? []
@@ -323,7 +342,7 @@ export function LibraryClient() {
             ) : null}
           </section>
 
-          {resume ? (
+          {resume && !searching ? (
             <Link className="resume-card" href={studyHref(resume.id, resume.name)}>
               <Thumbnail
                 videoId={resume.id}
@@ -345,7 +364,7 @@ export function LibraryClient() {
             </Link>
           ) : null}
 
-          {focusDivisions.length ? (
+          {focusDivisions.length && !searching ? (
             <section className="focus-strip" aria-label="This week’s focus">
               <span className="focus-strip__label">
                 <Target size={15} /> This week
@@ -372,11 +391,16 @@ export function LibraryClient() {
             <div className="browser-toolbar">
               <label className="search-field">
                 <Search size={16} />
-                <span className="sr-only">Search videos</span>
+                <span className="sr-only">Search video titles and spoken words</span>
                 <input
+                  id="library-search"
+                  ref={searchInput}
+                  type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search your library"
+                  onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); }}
+                  placeholder="Search titles or spoken words"
+                  autoComplete="off"
                 />
                 {query ? (
                   <button type="button" onClick={() => setQuery("")} aria-label="Clear search">
@@ -384,7 +408,7 @@ export function LibraryClient() {
                   </button>
                 ) : null}
               </label>
-              <div className="filter-pills" aria-label="Filter videos">
+              {!searching ? <div className="filter-pills" aria-label="Filter videos">
                 {filters.map((item) => (
                   <button
                     key={item.id}
@@ -396,8 +420,19 @@ export function LibraryClient() {
                     {item.label}
                   </button>
                 ))}
-              </div>
+              </div> : null}
             </div>
+
+            {searching ? (
+              <>
+                <p className="search-summary">Search across your library. Choose a spoken match to play from that moment.</p>
+                <TranscriptSearch query={query} />
+                <div className="group-head">
+                  <h2>Video titles</h2>
+                  <span>{videos.length}</span>
+                </div>
+              </>
+            ) : null}
 
             {starredView ? (
               <>
@@ -462,9 +497,7 @@ export function LibraryClient() {
                       </span>
                     ))}
                   </nav>
-                ) : (
-                  <p className="search-summary">Results across your full Drive hierarchy</p>
-                )}
+                ) : null}
 
                 {childFolders.length ? (
                   <div className="folder-grid">
@@ -491,7 +524,9 @@ export function LibraryClient() {
                   </div>
                 ) : null}
 
-                {!childFolders.length && !videos.length ? (
+                {searching && !videos.length ? <p className="search-summary">No video titles match “{query.trim()}”.</p> : null}
+
+                {!searching && !childFolders.length && !videos.length ? (
                   <div className="empty-state">
                     <span>
                       <Sparkles size={20} />

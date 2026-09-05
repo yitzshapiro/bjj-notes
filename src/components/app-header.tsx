@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { BookOpen, Captions, History, LogOut, Map, Menu, Search, Swords, Target, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
+import styles from "./app-header.module.css";
 
 type AppHeaderProps = {
   compact?: boolean;
@@ -35,7 +36,7 @@ export function AppHeader({ compact = false, title, trailing }: AppHeaderProps) 
           </span>
           <span>BJJ Notes</span>
         </Link>
-        <nav className="app-nav desktop-only" aria-label="Sections">
+        <nav className={`app-nav desktop-only ${styles.navigation}`} aria-label="Sections">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -50,10 +51,13 @@ export function AppHeader({ compact = false, title, trailing }: AppHeaderProps) 
         </nav>
         {title ? <p className="app-header__title truncate">{title}</p> : null}
         <div className="app-header__actions">
+          <Link className="icon-button" href="/library?search=1#library-search" aria-label="Search video titles and transcripts" title="Search video titles and transcripts">
+            <Search size={17} />
+          </Link>
           {trailing}
           <ThemeToggle />
           <button
-            className="icon-button mobile-only"
+            className={`icon-button mobile-only ${styles.menuToggle}`}
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}

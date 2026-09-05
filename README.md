@@ -266,6 +266,11 @@ For either format, choose a combined export or export only timestamped notes or 
 
 ## Commands
 
+For automatic SRT generation with **Deepgram Nova-3**, see
+[subtitle setup, resume instructions, and runtime/cost estimates](docs/subtitles.md).
+`pnpm subtitles:estimate` previews the saved library without downloading media or
+calling Deepgram; `pnpm subtitles:generate` performs the standalone transcription job.
+
 | Command | Purpose |
 | --- | --- |
 | `pnpm dev` | Run BJJ Notes locally. |
@@ -289,4 +294,3 @@ For either format, choose a combined export or export only timestamped notes or 
 - The local-only design reduces exposure, but `localhost` is not a substitute for the email allowlist or proper secrets.
 
 See [docs/architecture.md](docs/architecture.md) for the data flow and trust boundaries.
-

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Check,
@@ -47,6 +47,8 @@ import {
   storeRate,
 } from "@/lib/playback-rate";
 import type { BreadcrumbFolder } from "@/lib/drive";
+import { clampStudySeek, readStudySeek } from "@/lib/study-seek";
+import captionStyles from "./study-captions.module.css";
 import { AppHeader } from "./app-header";
 import { ErrorState, LoadingState, ProgressBar } from "./ui";
 
@@ -281,12 +283,18 @@ export function StudyClient({
   streamVersion: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // The server's historical default is zero even when t is absent. Read the
+  // URL's presence directly so an explicit t=0 can override a saved position.
+  const deepLinkTime = readStudySeek(searchParams.get("t"), initialSeek > 0 ? initialSeek : undefined);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const captionTrackRef = useRef<HTMLTrackElement>(null);
   const lastSavedPosition = useRef(0);
   const lastUiUpdateAt = useRef(0);
   const pendingResumePosition = useRef<number | null>(null);
   const pendingSeekPosition = useRef<number | null>(null);
-  const pendingDeepLink = useRef(initialSeek);
+  const pendingDeepLink = useRef<number | null>(deepLinkTime);
+  const explicitPositionRequested = useRef(deepLinkTime !== null);
   const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState(initialName || "Instructional video");
@@ -315,6 +323,7 @@ export function StudyClient({
   const [mediaBusy, setMediaBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [hasCaptions, setHasCaptions] = useState(false);
+  const [captionVersion, setCaptionVersion] = useState<string | null>(null);
   const [rate, setRate] = useState(DEFAULT_RATE);
   const [rateMenuOpen, setRateMenuOpen] = useState(false);
   const [cue, setCue] = useState<{ id: number; icon: "faster" | "slower" | "back" | "forward"; text: string } | null>(
@@ -323,10 +332,35 @@ export function StudyClient({
   const cueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const restorePlaybackPosition = useCallback((video: HTMLVideoElement) => {
+    if (explicitPositionRequested.current) return;
     const target = pendingResumePosition.current;
     if (target == null || target <= 0 || !Number.isFinite(video.duration)) return;
     pendingResumePosition.current = null;
     if (target < video.duration - 5 && video.currentTime < 1) video.currentTime = target;
+  }, []);
+
+  useEffect(() => {
+    pendingDeepLink.current = deepLinkTime;
+    pendingResumePosition.current = null;
+    pendingSeekPosition.current = null;
+    explicitPositionRequested.current = deepLinkTime !== null;
+    const video = videoRef.current;
+    if (deepLinkTime !== null && video?.readyState) {
+      video.currentTime = clampStudySeek(deepLinkTime, video.duration);
+      pendingDeepLink.current = null;
+    }
+  }, [deepLinkTime, videoId]);
+
+  const activateCaptionTrack = useCallback(() => {
+    const video = videoRef.current;
+    const selected = captionTrackRef.current?.track;
+    if (!video || !selected) return;
+    // A source file can carry an embedded text track as well as our corrected
+    // track. Only the current external track should render native captions.
+    for (const track of video.textTracks) {
+      // eslint-disable-next-line react-hooks/immutability -- Native TextTrack selection is an imperative browser API.
+      if (track !== selected) track.mode = "disabled";
+    }
   }, []);
 
   useEffect(() => {
@@ -346,10 +380,13 @@ export function StudyClient({
           ...(bundle.progress ?? {}),
         };
         if (!nextProgress.durationSeconds) nextProgress.durationSeconds = initialDuration;
-        setProgress(nextProgress);
+        setProgress(explicitPositionRequested.current ? {
+          ...nextProgress,
+          positionSeconds: pendingDeepLink.current ?? videoRef.current?.currentTime ?? nextProgress.positionSeconds,
+        } : nextProgress);
         lastSavedPosition.current = nextProgress.positionSeconds;
         // A division deep link takes precedence over the saved resume point.
-        if (!pendingDeepLink.current) {
+        if (!explicitPositionRequested.current) {
           pendingResumePosition.current = nextProgress.positionSeconds;
           if (videoRef.current?.readyState) restorePlaybackPosition(videoRef.current);
         }
@@ -358,6 +395,7 @@ export function StudyClient({
         setSections(Array.isArray(bundle.sections) ? bundle.sections : []);
         setPresets(Array.isArray(presetItems) ? presetItems : []);
         setHasCaptions(Boolean(bundle.hasCaptions));
+        setCaptionVersion(bundle.captionVersion ?? null);
       } catch (caught) {
         if (cancelled) return;
         if (caught instanceof ApiError && caught.status === 401) router.replace("/");
@@ -424,10 +462,10 @@ export function StudyClient({
   const seek = (seconds: number) => {
     const video = videoRef.current;
     if (!video) return;
-    const target = Math.max(
-      0,
-      Math.min(seconds, Number.isFinite(video.duration) ? video.duration : seconds),
-    );
+    const target = clampStudySeek(seconds, video.duration);
+    explicitPositionRequested.current = true;
+    pendingDeepLink.current = null;
+    pendingResumePosition.current = null;
     pendingSeekPosition.current = target;
     setMediaBusy(true);
     if (!video.readyState) {
@@ -682,29 +720,33 @@ export function StudyClient({
 
           <div className="video-frame">
             <video
+              key={videoId}
               ref={videoRef}
+              className={captionStyles.video}
               controls
               playsInline
               preload="auto"
               src={`/api/videos/${encodeURIComponent(videoId)}/stream?token=${encodeURIComponent(playbackToken)}&v=${encodeURIComponent(streamVersion)}`}
               onLoadedMetadata={(event) => {
                 const video = event.currentTarget;
-                if (pendingDeepLink.current > 0) {
-                  const target = pendingDeepLink.current;
-                  pendingDeepLink.current = 0;
-                  video.currentTime = Number.isFinite(video.duration)
-                    ? Math.min(target, Math.max(0, video.duration - 1))
-                    : target;
+                // A same-video navigation can refresh the stream token after
+                // the URL effect sought the old media source. Keep the URL
+                // authoritative through that metadata reload as well.
+                const target = pendingSeekPosition.current ?? pendingDeepLink.current ??
+                  (explicitPositionRequested.current ? deepLinkTime : null);
+                if (target !== null) {
+                  pendingDeepLink.current = null;
+                  pendingResumePosition.current = null;
+                  video.currentTime = clampStudySeek(target, video.duration);
                 } else {
                   restorePlaybackPosition(video);
-                  if (pendingSeekPosition.current != null) {
-                    video.currentTime = pendingSeekPosition.current;
-                  }
                 }
                 // A seek can call video.load(), which resets playbackRate to 1.
                 video.playbackRate = rate;
+                activateCaptionTrack();
                 setProgress((current) => ({
                   ...current,
+                  positionSeconds: video.currentTime,
                   durationSeconds: Number.isFinite(video.duration)
                     ? video.duration
                     : current.durationSeconds,
@@ -742,11 +784,14 @@ export function StudyClient({
             >
               {hasCaptions ? (
                 <track
+                  key={`${videoId}:${captionVersion ?? "available"}:${refreshKey}`}
+                  ref={captionTrackRef}
                   default
                   kind="captions"
                   label="English"
                   srcLang="en"
-                  src={`/api/videos/${encodeURIComponent(videoId)}/captions`}
+                  src={`/api/videos/${encodeURIComponent(videoId)}/captions?v=${encodeURIComponent(captionVersion ?? "normalized-v1")}&refresh=${refreshKey}`}
+                  onLoad={activateCaptionTrack}
                 />
               ) : null}
               Your browser does not support HTML video.

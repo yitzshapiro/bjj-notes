@@ -1,6 +1,9 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  customType,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -283,13 +286,7 @@ export const planSteps = pgTable(
   ],
 );
 
-/**
- * One caption track per video, uploaded as a WebVTT file.
- *
- * Drive auto-generates these for uploaded video, but exposes them only through
- * the "Manage caption tracks" UI — there is no API for them, so the `.vtt`
- * files are downloaded by hand and matched to videos on `/captions`.
- */
+/** One normalized WebVTT caption track and its derived search index per video. */
 export const videoCaptions = pgTable("video_captions", {
   videoId: text("video_id")
     .primaryKey()
@@ -301,10 +298,29 @@ export const videoCaptions = pgTable("video_captions", {
   fileName: text("file_name"),
   content: text("content").notNull(),
   cueCount: integer("cue_count").notNull().default(0),
+  indexVersion: integer("index_version").notNull().default(0),
   lastCueEndSeconds: real("last_cue_end_seconds"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
+
+export const videoCaptionCues = pgTable("video_caption_cues", {
+  videoId: text("video_id").notNull().references(() => videoCaptions.videoId, { onDelete: "cascade" }),
+  cueIndex: integer("cue_index").notNull(),
+  startSeconds: doublePrecision("start_seconds").notNull(),
+  endSeconds: doublePrecision("end_seconds").notNull(),
+  text: text("text").notNull(),
+  // A short look-ahead finds phrases split across adjacent subtitle cues.
+  searchText: text("search_text").notNull(),
+  searchEndSeconds: doublePrecision("search_end_seconds").notNull(),
+  searchVector: tsvector("search_vector").notNull().generatedAlwaysAs(sql`to_tsvector('simple'::regconfig, search_text)`),
+  ownVector: tsvector("own_vector").notNull().generatedAlwaysAs(sql`to_tsvector('simple'::regconfig, text)`),
+}, (table) => [
+  primaryKey({ columns: [table.videoId, table.cueIndex] }),
+  index("video_caption_cues_search_idx").using("gin", table.searchVector),
+]);
 
 export type DriveItem = typeof driveItems.$inferSelect;
 export type VideoProgress = typeof videoProgress.$inferSelect;

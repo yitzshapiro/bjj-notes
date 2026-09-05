@@ -1,0 +1,5 @@
+/* Keep the global search action available without crowding navigation on tablets. */
+@media (max-width: 1100px) {
+  .navigation:global(.desktop-only) { display: none !important; }
+  .menuToggle:global(.mobile-only) { display: inline-flex !important; }
+}

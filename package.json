@@ -12,6 +12,11 @@
     "db:migrate": "drizzle-kit migrate",
     "tag:divisions": "tsx scripts/tag-divisions.ts",
     "seed:guard-plan": "tsx scripts/seed-guard-plan.ts",
+    "subtitles:auth": "tsx scripts/generate-subtitles.ts --auth",
+    "subtitles:estimate": "tsx scripts/generate-subtitles.ts --estimate --source database",
+    "subtitles:generate": "tsx scripts/generate-subtitles.ts --run",
+    "subtitles:normalize": "tsx scripts/normalize-subtitles.ts",
+    "subtitles:import": "tsx scripts/import-captions.ts",
     "test": "vitest run"
   },
   "engines": {
@@ -37,6 +42,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.3.1",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

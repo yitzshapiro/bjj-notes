@@ -232,6 +232,7 @@ export type VideoBundle = {
   runningNote: { body: string; updatedAt?: string };
   sections: StudySection[];
   hasCaptions?: boolean;
+  captionVersion?: string | null;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -391,7 +392,32 @@ export type CaptionCoverage = {
 
 export type CaptionUploadFile = { name: string; content: string; videoId?: string };
 
+export type CaptionSearchResult = {
+  videoId: string;
+  videoName: string;
+  path: string[];
+  startSeconds: number;
+  endSeconds: number;
+  snippet: string;
+};
+
+export type CaptionSearchPayload = {
+  query: string;
+  normalizedQuery?: string;
+  total: number;
+  limit: number;
+  offset: number;
+  results: CaptionSearchResult[];
+  nextOffset: number | null;
+};
+
 export const api = {
+  searchCaptions(options: { q: string; limit?: number; offset?: number }, signal?: AbortSignal) {
+    const params = new URLSearchParams({ q: options.q });
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    if (options.offset !== undefined) params.set("offset", String(options.offset));
+    return request<CaptionSearchPayload>(`/api/captions/search?${params}`, { signal });
+  },
   captionCoverage() {
     return request<CaptionCoverage>("/api/captions");
   },

@@ -33,7 +33,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
         .where(eq(videoSections.videoId, id))
         .orderBy(asc(videoSections.sortOrder), asc(videoSections.startSeconds)),
       db
-        .select({ cueCount: videoCaptions.cueCount })
+        .select({ cueCount: videoCaptions.cueCount, updatedAt: videoCaptions.updatedAt })
         .from(videoCaptions)
         .where(eq(videoCaptions.videoId, id))
         .limit(1),
@@ -49,6 +49,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vid
       runningNote: runningRows[0] ?? null,
       sections: sections.map((row) => ({ ...row.section, gameEntryId: row.gameEntryId })),
       hasCaptions: captionRows.length > 0,
+      captionVersion: captionRows[0]?.updatedAt.toISOString() ?? null,
     });
   } catch (error) {
     return apiError(error);

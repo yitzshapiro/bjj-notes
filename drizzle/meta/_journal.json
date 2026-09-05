@@ -43,6 +43,13 @@
       "when": 1788036750052,
       "tag": "0005_typical_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788643605494,
+      "tag": "0006_magenta_the_hand",
+      "breakpoints": true
     }
   ]
 }
